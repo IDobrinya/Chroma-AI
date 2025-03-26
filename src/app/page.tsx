@@ -129,11 +129,6 @@ export default function Home() {
             Settings
           </button>
 
-          {/* Slider area */}
-          <div className="flex-grow mx-16 h-6">
-            <div className="bg-gray-700 h-full rounded-full mx-4"></div>
-          </div>
-
           {/* Live button */}
           <button 
             className={`px-3 py-1 rounded text-xs ${isAiActive ? 'bg-green-600' : 'bg-red-600'} text-white`}
@@ -145,7 +140,7 @@ export default function Home() {
       </div>
 
       {/* Guide line */}
-      <div className="absolute inset-0 pointer-events-none z-30">
+      <div className="absolute inset-0 pointer-events-none z-50">
         <GuideLine 
           initialPosition={guideLinePosition} 
           onPositionChange={setGuideLinePosition}
@@ -156,7 +151,7 @@ export default function Home() {
 
       {/* Bottom section with results */}
       <div 
-        className="bg-black"
+        className="bg-black z-30"
         style={{ height: `${100 - guideLinePosition}%` }}
       >
         <ResultPanel
