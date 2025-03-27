@@ -56,20 +56,8 @@ export default function Home() {
     }, 500);
   };
   
-  // Mock processing effect when AI is active
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    
-    if (isAiActive) {
-      interval = setInterval(() => {
-        handleImageCapture('mock-data');
-      }, 2000);
-    }
-    
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isAiActive]);
+  // We no longer need this effect as the CameraView component now handles 
+  // the frame capture interval when isActive is true
   
   return (
     <div className="flex flex-col h-screen bg-black overflow-hidden">

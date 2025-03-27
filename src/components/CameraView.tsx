@@ -9,19 +9,20 @@ const CameraView: React.FC<CameraViewProps> = ({ isActive, onImageCapture }) => 
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   
+  // Initialize camera stream once on component mount
   useEffect(() => {
-    let stream: MediaStream | null = null;
-    
     const setupCamera = async () => {
       try {
-        if (isActive && videoRef.current) {
-          stream = await navigator.mediaDevices.getUserMedia({
+        if (videoRef.current && !stream) {
+          const newStream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'environment' }
           });
           
           if (videoRef.current) {
-            videoRef.current.srcObject = stream;
+            videoRef.current.srcObject = newStream;
+            setStream(newStream);
             setHasPermission(true);
             setError(null);
           }
@@ -33,9 +34,7 @@ const CameraView: React.FC<CameraViewProps> = ({ isActive, onImageCapture }) => 
       }
     };
     
-    if (isActive) {
-      setupCamera();
-    }
+    setupCamera();
     
     return () => {
       if (stream) {
@@ -45,7 +44,20 @@ const CameraView: React.FC<CameraViewProps> = ({ isActive, onImageCapture }) => 
         videoRef.current.srcObject = null;
       }
     };
-  }, [isActive]);
+  }, []);
+  
+  // Set up capture interval when isActive changes
+  useEffect(() => {
+    if (!isActive || !onImageCapture || !stream) return;
+    
+    const captureInterval = setInterval(() => {
+      captureFrame();
+    }, 1000); // Capture every second when active
+    
+    return () => {
+      clearInterval(captureInterval);
+    };
+  }, [isActive, onImageCapture, stream]);
   
   // Function to capture current frame
   const captureFrame = () => {
@@ -65,30 +77,34 @@ const CameraView: React.FC<CameraViewProps> = ({ isActive, onImageCapture }) => 
   
   return (
     <div className="relative w-full h-full">
-      {isActive ? (
-        <>
-          <video 
-            ref={videoRef}
-            autoPlay 
-            playsInline
-            className="w-full h-full object-cover"
-            onLoadedMetadata={() => {
-              if (videoRef.current) videoRef.current.play();
-            }}
-          />
-          
-          {hasPermission === false && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-80 text-white text-center p-4">
-              <div>
-                <p className="text-lg font-bold mb-2">Camera Access Required</p>
-                <p>{error || 'Please allow camera access to use this feature.'}</p>
-              </div>
-            </div>
-          )}
-        </>
-      ) : (
-        <div className="w-full h-full bg-black flex items-center justify-center text-white">
-          <p>Camera inactive</p>
+      <video 
+        ref={videoRef}
+        autoPlay 
+        playsInline
+        className="w-full h-full object-cover"
+        onLoadedMetadata={() => {
+          if (videoRef.current) videoRef.current.play();
+        }}
+      />
+      
+      {hasPermission === false && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-80 text-white text-center p-4">
+          <div>
+            <p className="text-lg font-bold mb-2">Camera Access Required</p>
+            <p>{error || 'Please allow camera access to use this feature.'}</p>
+          </div>
+        </div>
+      )}
+      
+      {!stream && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black text-white">
+          <p>Initializing camera...</p>
+        </div>
+      )}
+      
+      {isActive && stream && (
+        <div className="absolute top-4 right-4">
+          <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse"></div>
         </div>
       )}
     </div>
