@@ -15,6 +15,8 @@ export default function Home() {
   const [isAiActive, setIsAiActive] = useState(false);
   const [guideLinePosition, setGuideLinePosition] = useState(70); // Initial position at 70%
   const [visionMode, setVisionMode] = useState<VisionMode>('normal');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showFullscreenPrompt, setShowFullscreenPrompt] = useState(true);
   const [detectedObject, setDetectedObject] = useState<{ label: string; confidence: number }>({
     label: 'No detection',
     confidence: 0
@@ -29,6 +31,29 @@ export default function Home() {
   const toggleAI = () => {
     setIsAiActive(!isAiActive);
   };
+  
+  // Enter fullscreen mode
+  const enterFullscreen = () => {
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen()
+        .then(() => setIsFullscreen(true))
+        .catch(err => console.error('Error attempting to enable fullscreen:', err));
+    }
+    setShowFullscreenPrompt(false);
+  };
+  
+  // Check fullscreen status on mount and exit
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
   
   // Handle vision mode change
   const handleVisionModeChange = (mode: VisionMode) => {
@@ -58,47 +83,47 @@ export default function Home() {
   
   // We no longer need this effect as the CameraView component now handles 
   // the frame capture interval when isActive is true
-  
+
   return (
     <div className="flex flex-col h-screen bg-black overflow-hidden">
       {/* Top section with camera/image */}
-      <div 
+      <div
         className="relative flex-grow overflow-hidden"
         style={{ height: `${guideLinePosition}%` }}
       >
         {/* Navigation drawer overlay - closes drawer when clicking outside */}
         {isNavOpen && (
-          <div 
+          <div
             className="fixed inset-0 bg-black bg-opacity-50 z-10"
             onClick={() => setIsNavOpen(false)}
           />
         )}
 
         {/* Navigation view */}
-        <NavigationView 
-          isOpen={isNavOpen} 
-          onClose={() => setIsNavOpen(false)} 
+        <NavigationView
+          isOpen={isNavOpen}
+          onClose={() => setIsNavOpen(false)}
           onModeSelect={handleVisionModeChange}
           currentMode={visionMode}
         />
 
         {/* Camera view component */}
-        <CameraView 
-          isActive={isAiActive} 
-          onImageCapture={handleImageCapture} 
+        <CameraView
+          isActive={isAiActive}
+          onImageCapture={handleImageCapture}
         />
 
         {/* Image overlay for vision modes */}
         {visionMode !== 'normal' && (
-          <div 
+          <div
             className="absolute inset-0 z-5 mix-blend-multiply pointer-events-none"
             style={{
-              filter: 
+              filter:
                 visionMode === 'protanomaly' ? 'saturate(0.8) sepia(0.2) hue-rotate(-10deg)' :
                 visionMode === 'deuteranomaly' ? 'saturate(0.8) sepia(0.2) hue-rotate(10deg)' :
                 visionMode === 'tritanomaly' ? 'saturate(0.7) sepia(0.2) hue-rotate(60deg)' :
                 visionMode === 'achromatopsia' ? 'grayscale(1)' : 'none',
-              backgroundColor: 
+              backgroundColor:
                 visionMode === 'protanomaly' ? 'rgba(255, 230, 230, 0.3)' :
                 visionMode === 'deuteranomaly' ? 'rgba(230, 255, 230, 0.3)' :
                 visionMode === 'tritanomaly' ? 'rgba(230, 230, 255, 0.3)' :
@@ -107,30 +132,36 @@ export default function Home() {
           />
         )}
 
-        {/* Bottom controls for top section */}
-        <div className="absolute bottom-0 left-0 right-0 flex justify-between items-center p-2 z-20">
-          {/* Settings button */}
-          <button 
+        {/* Settings button - now positioned at the top */}
+        <div className="absolute top-2 right-2 z-40">
+          <button
             className="bg-gray-800 text-white text-xs px-3 py-1 rounded"
             onClick={toggleNav}
           >
-            Settings
-          </button>
-
-          {/* Live button */}
-          <button 
-            className={`px-3 py-1 rounded text-xs ${isAiActive ? 'bg-green-600' : 'bg-red-600'} text-white`}
-            onClick={toggleAI}
-          >
-            {isAiActive ? 'ON' : 'OFF'}
+            Настройки
           </button>
         </div>
+        
+        {/* Fullscreen prompt */}
+        {showFullscreenPrompt && !isFullscreen && (
+          <div className="absolute top-2 left-2 z-40 bg-black bg-opacity-70 p-2 rounded">
+            <button
+              className="bg-blue-600 text-white text-xs px-3 py-1 rounded flex items-center"
+              onClick={enterFullscreen}
+            >
+              <span>Полноэкранный режим</span>
+              <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"></path>
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Guide line */}
       <div className="absolute inset-0 pointer-events-none z-50">
-        <GuideLine 
-          initialPosition={guideLinePosition} 
+        <GuideLine
+          initialPosition={guideLinePosition}
           onPositionChange={setGuideLinePosition}
           minPosition={40}
           maxPosition={80}
@@ -138,13 +169,15 @@ export default function Home() {
       </div>
 
       {/* Bottom section with results */}
-      <div 
+      <div
         className="bg-black z-30"
         style={{ height: `${100 - guideLinePosition}%` }}
       >
         <ResultPanel
           label={detectedObject.label}
           confidence={detectedObject.confidence}
+          isAiActive={isAiActive}
+          onToggleAI={toggleAI}
         />
       </div>
     </div>
