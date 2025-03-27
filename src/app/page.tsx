@@ -5,22 +5,32 @@ import NavigationView from '../components/NavigationView';
 import GuideLine from '../components/GuideLine';
 import CameraView from '../components/CameraView';
 import ResultPanel from '../components/ResultPanel';
+import { useRouter } from 'next/navigation'
+import { useAuth, UserButton } from '@clerk/nextjs';
 
 // Vision modes from settings.xml
 type VisionMode = 'normal' | 'protanomaly' | 'deuteranomaly' | 'tritanomaly' | 'achromatopsia';
 
 export default function Home() {
-  // State
+  const router = useRouter();
+  const { getToken, isSignedIn } = useAuth()
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [isAiActive, setIsAiActive] = useState(false);
-  const [guideLinePosition, setGuideLinePosition] = useState(70); // Initial position at 70%
+  const [guideLinePosition, setGuideLinePosition] = useState(70);
   const [visionMode, setVisionMode] = useState<VisionMode>('normal');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [detectedObject, setDetectedObject] = useState<{ label: string; confidence: number }>({
     label: 'No detection',
     confidence: 0
   });
-  
+
+  // Redirect to sign-in page if not signed in
+  useEffect(() => {
+    if (!isSignedIn) {
+      router.push('/sign-in');
+    }
+  }, [isSignedIn]);
+
   // Toggle the navigation drawer
   const toggleNav = () => {
     setIsNavOpen(!isNavOpen);
@@ -141,6 +151,11 @@ export default function Home() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </button>
+        </div>
+        
+        {/* User button - positioned at the top right */}
+        <div className="absolute top-2 right-2 z-40">
+          <UserButton/>
         </div>
 
         {/* Fullscreen prompt */}
