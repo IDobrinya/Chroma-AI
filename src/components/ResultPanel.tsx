@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface ResultPanelProps {
   label?: string;
@@ -6,6 +6,8 @@ interface ResultPanelProps {
   isAiActive?: boolean;
   onToggleAI?: () => void;
   serverStatus?: 'connected' | 'disconnected' | 'checking';
+  authMessage?: { text: string; isSuccess: boolean } | null;
+  serverAddress?: string;
 }
 
 const ResultPanel: React.FC<ResultPanelProps> = ({ 
@@ -13,10 +15,26 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
   confidence = 0,
   isAiActive = false,
   onToggleAI,
-  serverStatus = 'disconnected'
+  serverStatus = 'disconnected',
+  authMessage = null,
+  serverAddress = ''
 }) => {
+  const [showAuthMessage, setShowAuthMessage] = useState(false);
+  
   // Format confidence as percentage
   const formattedConfidence = `${Math.round(confidence * 100)}%`;
+  
+  // Show auth message temporarily when it changes
+  useEffect(() => {
+    if (authMessage) {
+      setShowAuthMessage(true);
+      const timer = setTimeout(() => {
+        setShowAuthMessage(false);
+      }, 3000); // Show for 3 seconds
+      
+      return () => clearTimeout(timer);
+    }
+  }, [authMessage]);
   
   // Get background color based on label or status
   const getBackgroundColor = () => {
@@ -40,7 +58,11 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
       onClick={onToggleAI}
     >
       {isAiActive ? (
-        serverStatus === 'connected' ? (
+        showAuthMessage && authMessage ? (
+          <div className={`font-mono text-3xl text-center ${authMessage.isSuccess ? 'text-green-400' : 'text-red-400'}`}>
+            {authMessage.text}
+          </div>
+        ) : serverStatus === 'connected' ? (
           <>
             <div className="font-mono text-4xl text-center mb-2 truncate max-w-full">
               {label}
@@ -58,9 +80,13 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
             Ошибка подключения к серверу
           </div>
         )
-      ) : (
+      ) : serverAddress && serverAddress.length > 0 ? (
         <div className="font-mono text-3xl text-center text-gray-400">
           Нажмите, чтобы активировать распознавание
+        </div>
+      ) : (
+        <div className="font-mono text-3xl text-center text-yellow-400">
+          Необходимо настроить подключение к серверу
         </div>
       )}
     </div>

@@ -8,12 +8,19 @@ import CameraView from '../components/CameraView';
 import ResultPanel from '../components/ResultPanel';
 import {useRouter} from 'next/navigation';
 import {useAuth, UserButton} from '@clerk/nextjs';
+import { setCookie, getCookie } from '../utils/cookies';
 
 // Vision modes
 type VisionMode = 'normal' | 'protanomaly' | 'deuteranomaly' | 'tritanomaly' | 'achromatopsia';
 
 // Server connection status
 type ServerStatus = 'connected' | 'disconnected' | 'checking';
+
+// User settings interface
+interface UserSettings {
+  serverAddress: string;
+  visionMode: VisionMode;
+}
 
 export default function Home() {
   const router = useRouter();
@@ -31,6 +38,8 @@ export default function Home() {
     label: 'No detection',
     confidence: 0
   });
+  const [authMessage, setAuthMessage] = useState<{ text: string; isSuccess: boolean } | null>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Redirect to sign-in page if not signed in
   useEffect(() => {
@@ -39,6 +48,49 @@ export default function Home() {
     }
   }, [isSignedIn, router]);
   
+  // Load user settings from cookies on initial load
+  useEffect(() => {
+    if (isSignedIn && isInitialLoad) {
+      const savedSettings = getCookie('userSettings');
+      
+      if (savedSettings) {
+        try {
+          const settings: UserSettings = JSON.parse(savedSettings);
+          
+          // Apply saved settings
+          if (settings.serverAddress) {
+            setServerAddress(settings.serverAddress);
+          }
+          
+          if (settings.visionMode) {
+            setVisionMode(settings.visionMode);
+          }
+          
+          // Auto-authenticate if server address is available
+          if (settings.serverAddress) {
+            setIsAiActive(true);
+          }
+        } catch (error) {
+          console.error('Error parsing saved settings:', error);
+        }
+      }
+      
+      setIsInitialLoad(false);
+    }
+  }, [isSignedIn, isInitialLoad]);
+  
+  // Save user settings to cookies when they change
+  useEffect(() => {
+    if (isSignedIn && !isInitialLoad) {
+      const settings: UserSettings = {
+        serverAddress,
+        visionMode
+      };
+      
+      setCookie('userSettings', JSON.stringify(settings));
+    }
+  }, [serverAddress, visionMode, isSignedIn, isInitialLoad]);
+  
   // Auto-close navigation drawer when server connects successfully
   useEffect(() => {
     if (serverStatus === 'connected') {
@@ -46,7 +98,7 @@ export default function Home() {
     }
   }, [serverStatus]);
 
-  // Connect to socket server when server address changes
+  // Connect to socket server when server address changes or when AI is activated
   useEffect(() => {
     const connectToServer = async () => {
       if (!serverAddress || !isAiActive) {
@@ -55,6 +107,7 @@ export default function Home() {
 
       try {
         setServerStatus('checking');
+        setAuthMessage({ text: 'Подключение к серверу...', isSuccess: true });
         
         // Close existing connection
         if (socketRef.current) {
@@ -68,10 +121,12 @@ export default function Home() {
         if (!token) {
           console.error('Authentication token not available');
           setServerStatus('disconnected');
+          setAuthMessage({ text: 'Ошибка авторизации', isSuccess: false });
           return;
         }
 
         try {
+          // Perform authorization check instead of health check
           const response = await fetch(serverAddress, {
             headers: {
               'Authorization': `Bearer ${token}`
@@ -79,11 +134,12 @@ export default function Home() {
           });
           
           if (!response.ok) {
-            throw new Error(`Health check failed: ${response.status}`);
+            throw new Error(`Ошибка авторизации: ${response.status}`);
           }
         } catch (error) {
-          console.error('Health check failed:', error);
+          console.error('Authorization failed:', error);
           setServerStatus('disconnected');
+          setAuthMessage({ text: 'Ошибка авторизации', isSuccess: false });
           return;
         }
         
@@ -95,6 +151,7 @@ export default function Home() {
         
         socket.on('connect', () => {
           setServerStatus('connected');
+          setAuthMessage({ text: 'Авторизация успешна', isSuccess: true });
           console.log('Connected to socket server');
         });
         
@@ -106,12 +163,14 @@ export default function Home() {
         socket.on('connect_error', (error) => {
           console.error('Socket connection error:', error);
           setServerStatus('disconnected');
+          setAuthMessage({ text: 'Ошибка соединения', isSuccess: false });
         });
         
         socketRef.current = socket;
       } catch (error) {
         console.error('Error setting up socket connection:', error);
         setServerStatus('disconnected');
+        setAuthMessage({ text: 'Ошибка соединения', isSuccess: false });
       }
     };
     
@@ -143,6 +202,18 @@ export default function Home() {
   const handleServerAddressChange = (address: string) => {
     setServerAddress(address);
     setServerStatus('checking');
+    
+    // Save in settings cookie
+    const settings: UserSettings = {
+      serverAddress: address,
+      visionMode
+    };
+    setCookie('userSettings', JSON.stringify(settings));
+    
+    // Activate AI mode to trigger authentication
+    if (!isAiActive) {
+      setIsAiActive(true);
+    }
   };
   
   // Enter fullscreen mode
@@ -171,6 +242,13 @@ export default function Home() {
   const handleVisionModeChange = (mode: VisionMode) => {
     setVisionMode(mode);
     setIsNavOpen(false); // Close the nav drawer after selection
+    
+    // Save in settings cookie
+    const settings: UserSettings = {
+      serverAddress,
+      visionMode: mode
+    };
+    setCookie('userSettings', JSON.stringify(settings));
   };
   
   // Define the type for server response data
@@ -379,6 +457,8 @@ export default function Home() {
           isAiActive={isAiActive}
           onToggleAI={toggleAI}
           serverStatus={serverStatus}
+          authMessage={authMessage}
+          serverAddress={serverAddress}
         />
       </div>
     </div>
