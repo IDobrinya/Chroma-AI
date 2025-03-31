@@ -1,24 +1,32 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, {useEffect, useRef, useState} from 'react';
+import {io, Socket} from 'socket.io-client';
 import NavigationView from '../components/NavigationView';
 import GuideLine from '../components/GuideLine';
 import CameraView from '../components/CameraView';
 import ResultPanel from '../components/ResultPanel';
-import { useRouter } from 'next/navigation'
-import { useAuth, UserButton } from '@clerk/nextjs';
+import {useRouter} from 'next/navigation';
+import {useAuth, UserButton} from '@clerk/nextjs';
 
-// Vision modes from settings.xml
+// Vision modes
 type VisionMode = 'normal' | 'protanomaly' | 'deuteranomaly' | 'tritanomaly' | 'achromatopsia';
+
+// Server connection status
+type ServerStatus = 'connected' | 'disconnected' | 'checking';
 
 export default function Home() {
   const router = useRouter();
-  const { getToken, isSignedIn } = useAuth()
+  const { getToken, isSignedIn } = useAuth();
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [isAiActive, setIsAiActive] = useState(false);
   const [guideLinePosition, setGuideLinePosition] = useState(70);
   const [visionMode, setVisionMode] = useState<VisionMode>('normal');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [serverAddress, setServerAddress] = useState<string>('');
+  const [serverStatus, setServerStatus] = useState<ServerStatus>('disconnected');
+  const socketRef = useRef<Socket | null>(null);
+  const [overlayImage, setOverlayImage] = useState<string | null>(null);
   const [detectedObject, setDetectedObject] = useState<{ label: string; confidence: number }>({
     label: 'No detection',
     confidence: 0
@@ -29,7 +37,93 @@ export default function Home() {
     if (!isSignedIn) {
       router.push('/sign-in');
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, router]);
+  
+  // Auto-close navigation drawer when server connects successfully
+  useEffect(() => {
+    if (serverStatus === 'connected') {
+      setIsNavOpen(false);
+    }
+  }, [serverStatus]);
+
+  // Connect to socket server when server address changes
+  useEffect(() => {
+    const connectToServer = async () => {
+      if (!serverAddress || !isAiActive) {
+        return;
+      }
+
+      try {
+        setServerStatus('checking');
+        
+        // Close existing connection
+        if (socketRef.current) {
+          socketRef.current.disconnect();
+          socketRef.current = null;
+        }
+        
+        // Get auth token 
+        const token = await getToken();
+        
+        if (!token) {
+          console.error('Authentication token not available');
+          setServerStatus('disconnected');
+          return;
+        }
+
+        try {
+          const response = await fetch(serverAddress, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Health check failed: ${response.status}`);
+          }
+        } catch (error) {
+          console.error('Health check failed:', error);
+          setServerStatus('disconnected');
+          return;
+        }
+        
+        const socket = io(serverAddress, {
+          extraHeaders: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        socket.on('connect', () => {
+          setServerStatus('connected');
+          console.log('Connected to socket server');
+        });
+        
+        socket.on('disconnect', () => {
+          setServerStatus('disconnected');
+          console.log('Disconnected from socket server');
+        });
+        
+        socket.on('connect_error', (error) => {
+          console.error('Socket connection error:', error);
+          setServerStatus('disconnected');
+        });
+        
+        socketRef.current = socket;
+      } catch (error) {
+        console.error('Error setting up socket connection:', error);
+        setServerStatus('disconnected');
+      }
+    };
+    
+    void connectToServer();
+    
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
+  }, [serverAddress, isAiActive, getToken]);
 
   // Toggle the navigation drawer
   const toggleNav = () => {
@@ -39,8 +133,18 @@ export default function Home() {
   // Toggle the AI processing
   const toggleAI = () => {
     setIsAiActive(!isAiActive);
+    
+    if (!isAiActive && serverStatus === 'disconnected') {
+      setIsNavOpen(true);
+    }
   };
 
+  // Handle server address change
+  const handleServerAddressChange = (address: string) => {
+    setServerAddress(address);
+    setServerStatus('checking');
+  };
+  
   // Enter fullscreen mode
   const enterFullscreen = () => {
     if (document.documentElement.requestFullscreen) {
@@ -69,29 +173,91 @@ export default function Home() {
     setIsNavOpen(false); // Close the nav drawer after selection
   };
   
-  // Handle image capture from camera
-  const handleImageCapture = (imageData: string) => {
-    // This would normally send the image to an AI service
-    // For now, we'll just simulate a detection
+  // Define the type for server response data
+  interface DetectionItem extends Array<number> {
+    0: number; // x1
+    1: number; // y1
+    2: number; // x2
+    3: number; // y2
+    4: number; // confidence
+    5: number; // label (0, 1, 2)
+  }
+
+  // Handle socket result from server
+  const handleSocketResult = (data: DetectionItem[]) => {
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      setDetectedObject({
+        label: 'No detection',
+        confidence: 0
+      });
+      setOverlayImage(null);
+      return;
+    }
     
-    // Simulate processing delay
-    setTimeout(() => {
-      const mockObjects = [
-        { label: 'Person', confidence: 0.95 },
-        { label: 'Cat', confidence: 0.87 },
-        { label: 'Dog', confidence: 0.92 },
-        { label: 'Car', confidence: 0.88 },
-        { label: 'Tree', confidence: 0.78 }
-      ];
+    try {
+      const firstItem = data[0];
+      const label = firstItem[5];
+      const confidence = firstItem[4];
       
-      const randomIndex = Math.floor(Math.random() * mockObjects.length);
-      setDetectedObject(mockObjects[randomIndex]);
-    }, 500);
+      const labelText = ['GREEN', 'RED', 'YELLOW'][Math.floor(label)] || 'UNKNOWN';
+      
+      setDetectedObject({
+        label: labelText,
+        confidence: confidence
+      });
+      
+      createOverlayImage(data);
+    } catch (error) {
+      console.error('Error processing result data:', error);
+      setDetectedObject({
+        label: 'Error',
+        confidence: 0
+      });
+      setOverlayImage(null);
+    }
   };
   
-  // We no longer need this effect as the CameraView component now handles 
-  // the frame capture interval when isActive is true
+  // Create canvas overlay for bounding boxes
+  const createOverlayImage = (data: DetectionItem[]) => {
+    if (!data || data.length === 0) {
+      setOverlayImage(null);
+      return;
+    }
+    
+    const canvas = document.createElement('canvas');
+    const width = window.innerWidth;
+    const height = Math.floor(window.innerHeight * (guideLinePosition / 100));
+    canvas.width = width;
+    canvas.height = height;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    ctx.clearRect(0, 0, width, height);
+    
+    const widthCoef = width / 640;
+    const heightCoef = height / 640;
+    
+    data.forEach(item => {
+      if (Array.isArray(item) && item.length === 6) {
+        const x1 = item[0] * widthCoef;
+        const y1 = item[1] * heightCoef;
+        const x2 = item[2] * widthCoef;
+        const y2 = item[3] * heightCoef;
+        const label = item[5];
+        
+        const colors = ['green', 'red', 'yellow'];
 
+        ctx.strokeStyle = colors[Math.floor(label)] || 'white';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+      }
+    });
+    
+    const dataUrl = canvas.toDataURL('image/png');
+    setOverlayImage(dataUrl);
+  };
+  
   return (
     <div className="flex flex-col h-screen bg-black overflow-hidden">
       {/* Top section with camera/image */}
@@ -113,13 +279,29 @@ export default function Home() {
           onClose={() => setIsNavOpen(false)}
           onModeSelect={handleVisionModeChange}
           currentMode={visionMode}
+          serverAddress={serverAddress}
+          onServerAddressChange={handleServerAddressChange}
+          serverStatus={serverStatus}
         />
 
         {/* Camera view component */}
         <CameraView
           isActive={isAiActive}
-          onImageCapture={handleImageCapture}
+          socket={isAiActive ? socketRef.current : null}
+          onResult={handleSocketResult}
         />
+        
+        {/* Overlay for bounding boxes */}
+        {overlayImage && (
+          <div className="absolute inset-0 pointer-events-none z-5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img 
+              src={overlayImage} 
+              alt="Detection overlay" 
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
 
         {/* Image overlay for vision modes */}
         {visionMode !== 'normal' && (
@@ -143,7 +325,7 @@ export default function Home() {
         {/* Settings button - positioned at the top left with animation */}
         <div className={`absolute top-2 left-2 z-40 transition-transform duration-300 ${isNavOpen ? 'translate-x-64 rotate-90' : ''}`}>
           <button
-            className="bg-gray-800 text-white p-2 rounded-full flex items-center justify-center"
+            className="bg-gray-800 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center"
             onClick={toggleNav}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -155,7 +337,9 @@ export default function Home() {
         
         {/* User button - positioned at the top right */}
         <div className="absolute top-2 right-2 z-40">
-          <UserButton/>
+          <div className="w-10 h-10 flex items-center justify-center">
+            <UserButton />
+          </div>
         </div>
 
         {/* Fullscreen prompt */}
@@ -194,6 +378,7 @@ export default function Home() {
           confidence={detectedObject.confidence}
           isAiActive={isAiActive}
           onToggleAI={toggleAI}
+          serverStatus={serverStatus}
         />
       </div>
     </div>

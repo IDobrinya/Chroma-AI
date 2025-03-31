@@ -1,11 +1,24 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { Socket } from 'socket.io-client';
+
+// Define the type for server response data
+interface DetectionItem extends Array<number> {
+  0: number; // x1
+  1: number; // y1
+  2: number; // x2
+  3: number; // y2
+  4: number; // confidence
+  5: number; // label (0, 1, 2)
+}
 
 interface CameraViewProps {
   isActive: boolean;
   onImageCapture?: (imageData: string) => void;
+  socket?: Socket | null;
+  onResult?: (result: DetectionItem[]) => void;
 }
 
-const CameraView: React.FC<CameraViewProps> = ({ isActive, onImageCapture }) => {
+const CameraView: React.FC<CameraViewProps> = ({ isActive, onImageCapture, socket, onResult }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,46 +47,80 @@ const CameraView: React.FC<CameraViewProps> = ({ isActive, onImageCapture }) => 
       }
     };
     
-    setupCamera();
+    void setupCamera();
     
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      // Store a reference to the current video element and stream
+      const currentVideo = videoRef.current;
+      const currentStream = stream;
+      
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
       }
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
+      if (currentVideo) {
+        currentVideo.srcObject = null;
       }
     };
   }, []);
-  
+
+  // Function to capture current frame
+  const captureFrame = React.useCallback(() => {
+    if (!videoRef.current) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 640;
+
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+
+      if (socket && socket.connected) {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const reader = new FileReader();
+            reader.onload = () => {
+              if (reader.result instanceof ArrayBuffer) {
+                socket.emit('frame', new Uint8Array(reader.result));
+              }
+            };
+            reader.readAsArrayBuffer(blob);
+          }
+        }, 'image/jpeg', 0.6);
+      } else if (onImageCapture) {
+        const imageData = canvas.toDataURL('image/jpeg', 0.6);
+        onImageCapture(imageData);
+      }
+    }
+  }, [socket, onImageCapture]);
+
   // Set up capture interval when isActive changes
   useEffect(() => {
-    if (!isActive || !onImageCapture || !stream) return;
+    if (!isActive || !stream) return;
     
     const captureInterval = setInterval(() => {
       captureFrame();
-    }, 1000); // Capture every second when active
+    }, 250);
     
     return () => {
       clearInterval(captureInterval);
     };
-  }, [isActive, onImageCapture, stream]);
-  
-  // Function to capture current frame
-  const captureFrame = () => {
-    if (videoRef.current && onImageCapture) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const imageData = canvas.toDataURL('image/jpeg');
-        onImageCapture(imageData);
-      }
-    }
-  };
+  }, [isActive, stream, socket, captureFrame]);
+
+  // Listen for socket responses
+  useEffect(() => {
+    if (!socket || !onResult) return;
+    
+    const handleSocketResult = (data: DetectionItem[]) => {
+      onResult(data);
+    };
+    
+    socket.on('result', handleSocketResult);
+    
+    return () => {
+      socket.off('result', handleSocketResult);
+    };
+  }, [socket, onResult]);
   
   return (
     <div className="relative w-full h-full">
