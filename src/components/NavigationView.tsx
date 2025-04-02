@@ -17,7 +17,6 @@ const NavigationView: React.FC<NavigationViewProps> = ({
   onModeSelect,
   currentMode = 'normal',
   serverAddress = '',
-  onServerAddressChange,
   serverStatus = 'disconnected'
 }) => {
   const [isAddressInputVisible, setIsAddressInputVisible] = useState(false);
@@ -33,14 +32,6 @@ const NavigationView: React.FC<NavigationViewProps> = ({
     if (onModeSelect) {
       onModeSelect(mode);
     }
-  };
-
-  // Handle server address save
-  const handleSaveAddress = () => {
-    if (onServerAddressChange) {
-      onServerAddressChange(tempServerAddress);
-    }
-    setIsAddressInputVisible(false);
   };
 
   // Get status indicator color
@@ -98,7 +89,7 @@ const NavigationView: React.FC<NavigationViewProps> = ({
               </button>
               <button
                 className="text-xs bg-blue-600 py-1 px-2 rounded hover:bg-blue-500"
-                onClick={handleSaveAddress}
+                onClick={() => setIsAddressInputVisible(false)}
               >
                 Сохранить
               </button>

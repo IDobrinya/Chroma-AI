@@ -74,7 +74,7 @@ export default function Home() {
           console.error('Error parsing saved settings:', error);
         }
       }
-      
+
       setIsInitialLoad(false);
     }
   }, [isSignedIn, isInitialLoad]);
@@ -127,7 +127,7 @@ export default function Home() {
 
         try {
           // Perform authorization check instead of health check
-          const response = await fetch(serverAddress, {
+          const response = await fetch(`${serverAddress}/Auth`, {
             headers: {
               'Authorization': `Bearer ${token}`
             }
