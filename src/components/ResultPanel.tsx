@@ -5,7 +5,7 @@ interface ResultPanelProps {
   confidence?: number;
   isAiActive?: boolean;
   onToggleAI?: () => void;
-  serverStatus?: 'connected' | 'disconnected' | 'checking';
+  serverStatus?: 'connected' | 'disconnected' | 'checking' | 'error';
   serverAddress?: string;
 }
 
@@ -51,6 +51,10 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
               {formattedConfidence}
             </div>
           </>
+        ) : serverStatus === 'checking' ? (
+          <div className="font-mono text-3xl text-center text-yellow-400">
+            Проверка подключения
+          </div>
         ) : (
           <div className="font-mono text-3xl text-center text-red-400">
             Ошибка подключения
