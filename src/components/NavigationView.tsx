@@ -9,7 +9,7 @@ interface NavigationViewProps {
   currentMode?: VisionMode;
   serverAddress?: string;
   onServerAddressChange?: (address: string) => void;
-  serverStatus?: 'connected' | 'disconnected' | 'checking';
+  serverStatus?: 'connected' | 'disconnected' | 'checking' | 'error';
 }
 
 const NavigationView: React.FC<NavigationViewProps> = ({
