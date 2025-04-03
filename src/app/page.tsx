@@ -8,7 +8,7 @@ import CameraView from '../components/CameraView';
 import ResultPanel from '../components/ResultPanel';
 import {useRouter} from 'next/navigation';
 import {useAuth, UserButton} from '@clerk/nextjs';
-import { setCookie, getCookie } from '../utils/cookies';
+import { setCookie, getCookie } from '@/utils/cookies';
 
 // Vision modes
 type VisionMode = 'normal' | 'protanomaly' | 'deuteranomaly' | 'tritanomaly' | 'achromatopsia';
@@ -26,7 +26,7 @@ export default function Home() {
   const router = useRouter();
   const { getToken, isSignedIn } = useAuth();
   const [isNavOpen, setIsNavOpen] = useState(false);
-  const [isAiActive, setIsAiActive] = useState(false);
+  const [isActive, setActive] = useState(false);
   const [guideLinePosition, setGuideLinePosition] = useState(70);
   const [visionMode, setVisionMode] = useState<VisionMode>('normal');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -38,7 +38,7 @@ export default function Home() {
     label: 'No detection',
     confidence: 0
   });
-  const [authMessage, setAuthMessage] = useState<{ text: string; isSuccess: boolean } | null>(null);
+  // Removed auth message state as it's no longer needed
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Redirect to sign-in page if not signed in
@@ -66,10 +66,7 @@ export default function Home() {
             setVisionMode(settings.visionMode);
           }
           
-          // Auto-authenticate if server address is available
-          if (settings.serverAddress) {
-            setIsAiActive(true);
-          }
+          // Don't auto-authenticate
         } catch (error) {
           console.error('Error parsing saved settings:', error);
         }
@@ -101,13 +98,12 @@ export default function Home() {
   // Connect to socket server when server address changes or when AI is activated
   useEffect(() => {
     const connectToServer = async () => {
-      if (!serverAddress || !isAiActive) {
+      if (!serverAddress || !isActive) {
         return;
       }
 
       try {
         setServerStatus('checking');
-        setAuthMessage({ text: 'Подключение к серверу...', isSuccess: true });
         
         // Close existing connection
         if (socketRef.current) {
@@ -121,7 +117,6 @@ export default function Home() {
         if (!token) {
           console.error('Authentication token not available');
           setServerStatus('disconnected');
-          setAuthMessage({ text: 'Ошибка авторизации', isSuccess: false });
           return;
         }
 
@@ -139,7 +134,6 @@ export default function Home() {
         } catch (error) {
           console.error('Authorization failed:', error);
           setServerStatus('disconnected');
-          setAuthMessage({ text: 'Ошибка авторизации', isSuccess: false });
           return;
         }
         
@@ -151,7 +145,6 @@ export default function Home() {
         
         socket.on('connect', () => {
           setServerStatus('connected');
-          setAuthMessage({ text: 'Авторизация успешна', isSuccess: true });
           console.log('Connected to socket server');
         });
         
@@ -163,14 +156,12 @@ export default function Home() {
         socket.on('connect_error', (error) => {
           console.error('Socket connection error:', error);
           setServerStatus('disconnected');
-          setAuthMessage({ text: 'Ошибка соединения', isSuccess: false });
         });
         
         socketRef.current = socket;
       } catch (error) {
         console.error('Error setting up socket connection:', error);
         setServerStatus('disconnected');
-        setAuthMessage({ text: 'Ошибка соединения', isSuccess: false });
       }
     };
     
@@ -182,7 +173,7 @@ export default function Home() {
         socketRef.current = null;
       }
     };
-  }, [serverAddress, isAiActive, getToken]);
+  }, [serverAddress, isActive, getToken]);
 
   // Toggle the navigation drawer
   const toggleNav = () => {
@@ -191,9 +182,9 @@ export default function Home() {
   
   // Toggle the AI processing
   const toggleAI = () => {
-    setIsAiActive(!isAiActive);
+    setActive(!isActive);
     
-    if (!isAiActive && serverStatus === 'disconnected') {
+    if (!isActive && serverStatus === 'disconnected') {
       setIsNavOpen(true);
     }
   };
@@ -201,7 +192,6 @@ export default function Home() {
   // Handle server address change
   const handleServerAddressChange = (address: string) => {
     setServerAddress(address);
-    setServerStatus('checking');
     
     // Save in settings cookie
     const settings: UserSettings = {
@@ -210,10 +200,7 @@ export default function Home() {
     };
     setCookie('userSettings', JSON.stringify(settings));
     
-    // Activate AI mode to trigger authentication
-    if (!isAiActive) {
-      setIsAiActive(true);
-    }
+    // Don't activate AI automatically
   };
   
   // Enter fullscreen mode
@@ -364,9 +351,10 @@ export default function Home() {
 
         {/* Camera view component */}
         <CameraView
-          isActive={isAiActive}
-          socket={isAiActive ? socketRef.current : null}
+          isActive={isActive}
+          socket={isActive ? socketRef.current : null}
           onResult={handleSocketResult}
+          serverStatus={serverStatus}
         />
         
         {/* Overlay for bounding boxes */}
@@ -454,10 +442,9 @@ export default function Home() {
         <ResultPanel
           label={detectedObject.label}
           confidence={detectedObject.confidence}
-          isAiActive={isAiActive}
+          isAiActive={isActive}
           onToggleAI={toggleAI}
           serverStatus={serverStatus}
-          authMessage={authMessage}
           serverAddress={serverAddress}
         />
       </div>

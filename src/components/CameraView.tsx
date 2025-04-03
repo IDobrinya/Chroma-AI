@@ -16,9 +16,10 @@ interface CameraViewProps {
   onImageCapture?: (imageData: string) => void;
   socket?: Socket | null;
   onResult?: (result: DetectionItem[]) => void;
+  serverStatus?: 'connected' | 'disconnected' | 'checking';
 }
 
-const CameraView: React.FC<CameraViewProps> = ({ isActive, onImageCapture, socket, onResult }) => {
+const CameraView: React.FC<CameraViewProps> = ({ isActive, onImageCapture, socket, onResult, serverStatus = 'disconnected' }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +66,8 @@ const CameraView: React.FC<CameraViewProps> = ({ isActive, onImageCapture, socke
 
   // Function to capture current frame
   const captureFrame = React.useCallback(() => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || !isActive) return;
+    if (serverStatus !== 'connected' && socket) return;
 
     const canvas = document.createElement('canvas');
     canvas.width = 640;
@@ -75,7 +77,7 @@ const CameraView: React.FC<CameraViewProps> = ({ isActive, onImageCapture, socke
     if (ctx) {
       ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
 
-      if (socket && socket.connected) {
+      if (socket && socket.connected && serverStatus === 'connected') {
         canvas.toBlob((blob) => {
           if (blob) {
             const reader = new FileReader();
@@ -92,11 +94,12 @@ const CameraView: React.FC<CameraViewProps> = ({ isActive, onImageCapture, socke
         onImageCapture(imageData);
       }
     }
-  }, [socket, onImageCapture]);
+  }, [socket, onImageCapture, isActive, serverStatus]);
 
   // Set up capture interval when isActive changes
   useEffect(() => {
     if (!isActive || !stream) return;
+    if (socket && serverStatus !== 'connected') return;
     
     const captureInterval = setInterval(() => {
       captureFrame();
@@ -105,7 +108,7 @@ const CameraView: React.FC<CameraViewProps> = ({ isActive, onImageCapture, socke
     return () => {
       clearInterval(captureInterval);
     };
-  }, [isActive, stream, socket, captureFrame]);
+  }, [isActive, stream, socket, captureFrame, serverStatus]);
 
   // Listen for socket responses
   useEffect(() => {

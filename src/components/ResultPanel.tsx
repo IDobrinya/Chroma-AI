@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
 interface ResultPanelProps {
   label?: string;
@@ -6,7 +6,6 @@ interface ResultPanelProps {
   isAiActive?: boolean;
   onToggleAI?: () => void;
   serverStatus?: 'connected' | 'disconnected' | 'checking';
-  authMessage?: { text: string; isSuccess: boolean } | null;
   serverAddress?: string;
 }
 
@@ -16,25 +15,10 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
   isAiActive = false,
   onToggleAI,
   serverStatus = 'disconnected',
-  authMessage = null,
   serverAddress = ''
 }) => {
-  const [showAuthMessage, setShowAuthMessage] = useState(false);
-  
   // Format confidence as percentage
   const formattedConfidence = `${Math.round(confidence * 100)}%`;
-  
-  // Show auth message temporarily when it changes
-  useEffect(() => {
-    if (authMessage) {
-      setShowAuthMessage(true);
-      const timer = setTimeout(() => {
-        setShowAuthMessage(false);
-      }, 3000); // Show for 3 seconds
-      
-      return () => clearTimeout(timer);
-    }
-  }, [authMessage]);
   
   // Get background color based on label or status
   const getBackgroundColor = () => {
@@ -58,11 +42,7 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
       onClick={onToggleAI}
     >
       {isAiActive ? (
-        showAuthMessage && authMessage ? (
-          <div className={`font-mono text-3xl text-center ${authMessage.isSuccess ? 'text-green-400' : 'text-red-400'}`}>
-            {authMessage.text}
-          </div>
-        ) : serverStatus === 'connected' ? (
+        serverStatus === 'connected' ? (
           <>
             <div className="font-mono text-4xl text-center mb-2 truncate max-w-full">
               {label}
@@ -71,18 +51,14 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
               {formattedConfidence}
             </div>
           </>
-        ) : serverStatus === 'checking' ? (
-          <div className="font-mono text-3xl text-center text-yellow-400">
-            Подключение к серверу...
-          </div>
         ) : (
           <div className="font-mono text-3xl text-center text-red-400">
-            Ошибка подключения к серверу
+            Ошибка подключения
           </div>
         )
       ) : serverAddress && serverAddress.length > 0 ? (
         <div className="font-mono text-3xl text-center text-gray-400">
-          Нажмите, чтобы активировать распознавание
+          Нажмите, чтобы подключиться
         </div>
       ) : (
         <div className="font-mono text-3xl text-center text-yellow-400">

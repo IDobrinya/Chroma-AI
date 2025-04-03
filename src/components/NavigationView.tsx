@@ -15,6 +15,7 @@ interface NavigationViewProps {
 const NavigationView: React.FC<NavigationViewProps> = ({
   isOpen,
   onModeSelect,
+  onServerAddressChange,
   currentMode = 'normal',
   serverAddress = '',
   serverStatus = 'disconnected'
@@ -83,13 +84,21 @@ const NavigationView: React.FC<NavigationViewProps> = ({
             <div className="flex justify-end">
               <button
                 className="text-xs bg-gray-600 py-1 px-2 rounded mr-2 hover:bg-gray-500"
-                onClick={() => setIsAddressInputVisible(false)}
+                onClick={() => {
+                  setTempServerAddress(serverAddress);
+                  setIsAddressInputVisible(false);
+                }}
               >
                 Отмена
               </button>
               <button
                 className="text-xs bg-blue-600 py-1 px-2 rounded hover:bg-blue-500"
-                onClick={() => setIsAddressInputVisible(false)}
+                onClick={() => {
+                  if (onServerAddressChange) {
+                    onServerAddressChange(tempServerAddress);
+                  }
+                  setIsAddressInputVisible(false);
+                }}
               >
                 Сохранить
               </button>
