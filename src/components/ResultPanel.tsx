@@ -28,14 +28,14 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
       return 'bg-red-900';
     }
     
-    switch (label.toUpperCase()) {
-      case 'GREEN': return 'bg-green-700';
-      case 'RED': return 'bg-red-700';
-      case 'YELLOW': return 'bg-yellow-600';
+    switch (label) {
+      case 'Зелёный': return 'bg-green-700';
+      case 'Красный': return 'bg-red-700';
+      case 'Жёлтый': return 'bg-yellow-600';
       default: return 'bg-black';
     }
   };
-  
+
   return (
     <div 
       className={`w-full h-full ${getBackgroundColor()} text-white flex flex-col items-center justify-center p-4 cursor-pointer transition-colors duration-300`} 

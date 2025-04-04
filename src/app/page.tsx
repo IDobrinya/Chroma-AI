@@ -36,7 +36,7 @@ export default function Home() {
   const attemptRef = useRef<number>(0);
   const [overlayImage, setOverlayImage] = useState<string | null>(null);
   const [detectedObject, setDetectedObject] = useState<{ label: string; confidence: number }>({
-    label: 'No detection',
+    label: 'Ничего',
     confidence: 0
   });
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -131,7 +131,7 @@ export default function Home() {
             console.error('WebSocket closed unexpectedly');
             setServerStatus('error');
           }
-          setDetectedObject({ label: 'No detection', confidence: 0 });
+          setDetectedObject({ label: 'Ничего', confidence: 0 });
           setOverlayImage(null);
           manualDisconnectRef.current = false;
         };
@@ -174,7 +174,7 @@ export default function Home() {
       setServerStatus('checking');
     } else {
       manualDisconnectRef.current = true;
-      setDetectedObject({ label: 'No detection', confidence: 0 });
+      setDetectedObject({ label: 'Ничего', confidence: 0 });
       setOverlayImage(null);
     }
     setActive(!isActive);
@@ -242,7 +242,7 @@ export default function Home() {
   const handleSocketResult = (data: DetectionItem[]) => {
     if (!data || !Array.isArray(data) || data.length === 0) {
       setDetectedObject({
-        label: 'No detection',
+        label: 'Ничего',
         confidence: 0
       });
       setOverlayImage(null);
@@ -252,7 +252,7 @@ export default function Home() {
       const firstItem = data[0];
       const label = firstItem[5];
       const confidence = firstItem[4];
-      const labelText = ['GREEN', 'RED', 'YELLOW'][Math.floor(label)] || 'UNKNOWN';
+      const labelText = ['Зелёный', 'Красный', 'Жёлтый'][Math.floor(label)] || 'UNKNOWN';
       setDetectedObject({
         label: labelText,
         confidence: confidence
