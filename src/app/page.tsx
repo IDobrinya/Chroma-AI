@@ -32,6 +32,8 @@ export default function Home() {
   const [serverAddress, setServerAddress] = useState<string>('');
   const [serverStatus, setServerStatus] = useState<ServerStatus>('disconnected');
   const wsRef = useRef<WebSocket | null>(null);
+  const manualDisconnectRef = useRef<boolean>(false);
+  const attemptRef = useRef<number>(0);
   const [overlayImage, setOverlayImage] = useState<string | null>(null);
   const [detectedObject, setDetectedObject] = useState<{ label: string; confidence: number }>({
     label: 'No detection',
@@ -87,6 +89,8 @@ export default function Home() {
 
       try {
         setServerStatus('checking');
+        attemptRef.current += 1;
+        const currentAttempt = attemptRef.current;
 
         // Close existing connection
         if (wsRef.current) {
@@ -123,10 +127,13 @@ export default function Home() {
         };
 
         ws.onclose = () => {
-          if (isActive) {
+          if (currentAttempt === attemptRef.current && !manualDisconnectRef.current) {
             console.error('WebSocket closed unexpectedly');
             setServerStatus('error');
           }
+          setDetectedObject({ label: 'No detection', confidence: 0 });
+          setOverlayImage(null);
+          manualDisconnectRef.current = false;
         };
 
         ws.onerror = (error) => {
@@ -151,6 +158,11 @@ export default function Home() {
     };
   }, [serverAddress, isActive, getToken]);
 
+  // Reset server status when server address changes
+  useEffect(() => {
+    setServerStatus('disconnected');
+  }, [serverAddress]);
+
   // Toggle the navigation drawer
   const toggleNav = () => {
     setIsNavOpen(!isNavOpen);
@@ -158,6 +170,13 @@ export default function Home() {
 
   // Toggle the AI processing
   const toggleAI = () => {
+    if (!isActive) {
+      setServerStatus('checking');
+    } else {
+      manualDisconnectRef.current = true;
+      setDetectedObject({ label: 'No detection', confidence: 0 });
+      setOverlayImage(null);
+    }
     setActive(!isActive);
   };
 
@@ -182,8 +201,8 @@ export default function Home() {
 
   // Open navbar if connection fails
   useEffect(() => {
-    if (serverStatus === "error") {
-      setIsNavOpen(true)
+    if (serverStatus === 'error') {
+      setIsNavOpen(true);
     }
   }, [serverStatus]);
 
