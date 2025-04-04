@@ -1,44 +1,193 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import NavigationView from '../components/NavigationView';
 import GuideLine from '../components/GuideLine';
 import CameraView from '../components/CameraView';
 import ResultPanel from '../components/ResultPanel';
-import { useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation';
 import { useAuth, UserButton } from '@clerk/nextjs';
+import { setCookie, getCookie } from '@/utils/cookies';
 
-// Vision modes from settings.xml
+// Vision modes
 type VisionMode = 'normal' | 'protanomaly' | 'deuteranomaly' | 'tritanomaly' | 'achromatopsia';
+
+// Server connection status
+type ServerStatus = 'connected' | 'disconnected' | 'checking' | 'error';
+
+// User settings interface
+interface UserSettings {
+  serverAddress: string;
+  visionMode: VisionMode;
+}
 
 export default function Home() {
   const router = useRouter();
-  const { getToken, isSignedIn } = useAuth()
+  const { getToken, isSignedIn } = useAuth();
   const [isNavOpen, setIsNavOpen] = useState(false);
-  const [isAiActive, setIsAiActive] = useState(false);
+  const [isActive, setActive] = useState(false);
   const [guideLinePosition, setGuideLinePosition] = useState(70);
   const [visionMode, setVisionMode] = useState<VisionMode>('normal');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [serverAddress, setServerAddress] = useState<string>('');
+  const [serverStatus, setServerStatus] = useState<ServerStatus>('disconnected');
+  const wsRef = useRef<WebSocket | null>(null);
+  const manualDisconnectRef = useRef<boolean>(false);
+  const attemptRef = useRef<number>(0);
+  const [overlayImage, setOverlayImage] = useState<string | null>(null);
   const [detectedObject, setDetectedObject] = useState<{ label: string; confidence: number }>({
-    label: 'No detection',
+    label: 'Ничего',
     confidence: 0
   });
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Redirect to sign-in page if not signed in
   useEffect(() => {
     if (!isSignedIn) {
       router.push('/sign-in');
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, router]);
+
+  // Load user settings from cookies on initial load
+  useEffect(() => {
+    if (isSignedIn && isInitialLoad) {
+      const savedSettings = getCookie('userSettings');
+      if (savedSettings) {
+        try {
+          const settings: UserSettings = JSON.parse(savedSettings);
+          if (settings.serverAddress) {
+            setServerAddress(settings.serverAddress);
+          }
+          if (settings.visionMode) {
+            setVisionMode(settings.visionMode);
+          }
+        } catch (error) {
+          console.error('Error parsing saved settings:', error);
+        }
+      }
+      setIsInitialLoad(false);
+    }
+  }, [isSignedIn, isInitialLoad]);
+
+  // Save user settings to cookies when they change
+  useEffect(() => {
+    if (isSignedIn && !isInitialLoad) {
+      const settings: UserSettings = {
+        serverAddress,
+        visionMode
+      };
+      setCookie('userSettings', JSON.stringify(settings));
+    }
+  }, [serverAddress, visionMode, isSignedIn, isInitialLoad]);
+
+  // Connect to WebSocket server when server address changes or when AI is activated
+  useEffect(() => {
+    const connectToServer = async () => {
+      if (!serverAddress || !isActive) {
+        return;
+      }
+
+      try {
+        setServerStatus('checking');
+        attemptRef.current += 1;
+        const currentAttempt = attemptRef.current;
+
+        // Close existing connection
+        if (wsRef.current) {
+          wsRef.current.close();
+          wsRef.current = null;
+        }
+
+        // Get auth token
+        const token = await getToken();
+        if (!token) {
+          console.error('Authentication token not available');
+          setServerStatus('disconnected');
+          return;
+        }
+
+        // Open WebSocket connection
+        const ws = new WebSocket(serverAddress);
+
+        ws.onopen = () => {
+          ws.send(JSON.stringify({ token }));
+        };
+
+        ws.onmessage = (event) => {
+          const msg = JSON.parse(event.data);
+          if (msg.status && msg.status !== 'success') {
+            console.error('Authorization failed:', msg.message);
+            ws.close();
+            setServerStatus('error');
+          } else if (msg.status && msg.status === 'success') {
+            setServerStatus('connected');
+          } else {
+            handleSocketResult(msg);
+          }
+        };
+
+        ws.onclose = () => {
+          if (currentAttempt === attemptRef.current && !manualDisconnectRef.current) {
+            console.error('WebSocket closed unexpectedly');
+            setServerStatus('error');
+          }
+          setDetectedObject({ label: 'Ничего', confidence: 0 });
+          setOverlayImage(null);
+          manualDisconnectRef.current = false;
+        };
+
+        ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          setServerStatus('error');
+        };
+
+        wsRef.current = ws;
+      } catch (error) {
+        console.error('Error setting up WebSocket connection:', error);
+        setServerStatus('error');
+      }
+    };
+
+    void connectToServer();
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [serverAddress, isActive, getToken]);
+
+  // Reset server status when server address changes
+  useEffect(() => {
+    setServerStatus('disconnected');
+  }, [serverAddress]);
 
   // Toggle the navigation drawer
   const toggleNav = () => {
     setIsNavOpen(!isNavOpen);
   };
-  
+
   // Toggle the AI processing
   const toggleAI = () => {
-    setIsAiActive(!isAiActive);
+    if (!isActive) {
+      setServerStatus('checking');
+    } else {
+      manualDisconnectRef.current = true;
+      setDetectedObject({ label: 'Ничего', confidence: 0 });
+      setOverlayImage(null);
+    }
+    setActive(!isActive);
+  };
+
+  // Handle server address change
+  const handleServerAddressChange = (address: string) => {
+    setServerAddress(address);
+    const settings: UserSettings = {
+      serverAddress: address,
+      visionMode
+    };
+    setCookie('userSettings', JSON.stringify(settings));
   };
 
   // Enter fullscreen mode
@@ -50,61 +199,115 @@ export default function Home() {
     }
   };
 
+  // Open navbar if connection fails
+  useEffect(() => {
+    if (serverStatus === 'error') {
+      setIsNavOpen(true);
+    }
+  }, [serverStatus]);
+
   // Check fullscreen status on mount and exit
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
-    
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
   }, []);
-  
+
   // Handle vision mode change
   const handleVisionModeChange = (mode: VisionMode) => {
     setVisionMode(mode);
-    setIsNavOpen(false); // Close the nav drawer after selection
+    setIsNavOpen(false);
+    const settings: UserSettings = {
+      serverAddress,
+      visionMode: mode
+    };
+    setCookie('userSettings', JSON.stringify(settings));
   };
-  
-  // Handle image capture from camera
-  const handleImageCapture = (imageData: string) => {
-    // This would normally send the image to an AI service
-    // For now, we'll just simulate a detection
-    
-    // Simulate processing delay
-    setTimeout(() => {
-      const mockObjects = [
-        { label: 'Person', confidence: 0.95 },
-        { label: 'Cat', confidence: 0.87 },
-        { label: 'Dog', confidence: 0.92 },
-        { label: 'Car', confidence: 0.88 },
-        { label: 'Tree', confidence: 0.78 }
-      ];
-      
-      const randomIndex = Math.floor(Math.random() * mockObjects.length);
-      setDetectedObject(mockObjects[randomIndex]);
-    }, 500);
+
+  // Define the type for server response data
+  interface DetectionItem extends Array<number> {
+    0: number; // x1
+    1: number; // y1
+    2: number; // x2
+    3: number; // y2
+    4: number; // confidence
+    5: number; // label (0, 1, 2)
+  }
+
+  // Handle WebSocket result from server
+  const handleSocketResult = (data: DetectionItem[]) => {
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      setDetectedObject({
+        label: 'Ничего',
+        confidence: 0
+      });
+      setOverlayImage(null);
+      return;
+    }
+    try {
+      const firstItem = data[0];
+      const label = firstItem[5];
+      const confidence = firstItem[4];
+      const labelText = ['Зелёный', 'Красный', 'Жёлтый'][Math.floor(label)] || 'UNKNOWN';
+      setDetectedObject({
+        label: labelText,
+        confidence: confidence
+      });
+      createOverlayImage(data);
+    } catch (error) {
+      console.error('Error processing result data:', error);
+      setDetectedObject({
+        label: 'Error',
+        confidence: 0
+      });
+      setOverlayImage(null);
+    }
   };
-  
-  // We no longer need this effect as the CameraView component now handles 
-  // the frame capture interval when isActive is true
+
+  // Create canvas overlay for bounding boxes
+  const createOverlayImage = (data: DetectionItem[]) => {
+    if (!data || data.length === 0) {
+      setOverlayImage(null);
+      return;
+    }
+    const canvas = document.createElement('canvas');
+    const width = window.innerWidth;
+    const height = Math.floor(window.innerHeight * (guideLinePosition / 100));
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, width, height);
+    const widthCoef = width / 640;
+    const heightCoef = height / 640;
+    data.forEach(item => {
+      if (Array.isArray(item) && item.length === 6) {
+        const x1 = item[0] * widthCoef;
+        const y1 = item[1] * heightCoef;
+        const x2 = item[2] * widthCoef;
+        const y2 = item[3] * heightCoef;
+        const label = item[5];
+        const colors = ['green', 'red', 'yellow'];
+        ctx.strokeStyle = colors[Math.floor(label)] || 'white';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+      }
+    });
+    const dataUrl = canvas.toDataURL('image/png');
+    setOverlayImage(dataUrl);
+  };
 
   return (
     <div className="flex flex-col h-screen bg-black overflow-hidden">
       {/* Top section with camera/image */}
-      <div
-        className="relative flex-grow overflow-hidden"
-        style={{ height: `${guideLinePosition}%` }}
-      >
+      <div className="relative flex-grow overflow-hidden" style={{ height: `${guideLinePosition}%` }}>
         {/* Navigation drawer overlay - closes drawer when clicking outside */}
         {isNavOpen && (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-10"
-            onClick={() => setIsNavOpen(false)}
-          />
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-10" onClick={() => setIsNavOpen(false)} />
         )}
 
         {/* Navigation view */}
@@ -113,13 +316,30 @@ export default function Home() {
           onClose={() => setIsNavOpen(false)}
           onModeSelect={handleVisionModeChange}
           currentMode={visionMode}
+          serverAddress={serverAddress}
+          onServerAddressChange={handleServerAddressChange}
+          serverStatus={serverStatus}
         />
 
         {/* Camera view component */}
         <CameraView
-          isActive={isAiActive}
-          onImageCapture={handleImageCapture}
+          isActive={isActive}
+          socket={wsRef.current}
+          onResult={handleSocketResult}
+          serverStatus={serverStatus}
         />
+
+        {/* Overlay for bounding boxes */}
+        {overlayImage && (
+          <div className="absolute inset-0 pointer-events-none z-5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={overlayImage}
+              alt="Detection overlay"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
 
         {/* Image overlay for vision modes */}
         {visionMode !== 'normal' && (
@@ -127,15 +347,25 @@ export default function Home() {
             className="absolute inset-0 z-5 mix-blend-multiply pointer-events-none"
             style={{
               filter:
-                visionMode === 'protanomaly' ? 'saturate(0.8) sepia(0.2) hue-rotate(-10deg)' :
-                visionMode === 'deuteranomaly' ? 'saturate(0.8) sepia(0.2) hue-rotate(10deg)' :
-                visionMode === 'tritanomaly' ? 'saturate(0.7) sepia(0.2) hue-rotate(60deg)' :
-                visionMode === 'achromatopsia' ? 'grayscale(1)' : 'none',
+                visionMode === 'protanomaly'
+                  ? 'saturate(0.8) sepia(0.2) hue-rotate(-10deg)'
+                  : visionMode === 'deuteranomaly'
+                    ? 'saturate(0.8) sepia(0.2) hue-rotate(10deg)'
+                    : visionMode === 'tritanomaly'
+                      ? 'saturate(0.7) sepia(0.2) hue-rotate(60deg)'
+                      : visionMode === 'achromatopsia'
+                        ? 'grayscale(1)'
+                        : 'none',
               backgroundColor:
-                visionMode === 'protanomaly' ? 'rgba(255, 230, 230, 0.3)' :
-                visionMode === 'deuteranomaly' ? 'rgba(230, 255, 230, 0.3)' :
-                visionMode === 'tritanomaly' ? 'rgba(230, 230, 255, 0.3)' :
-                visionMode === 'achromatopsia' ? 'rgba(220, 220, 220, 0.2)' : 'transparent'
+                visionMode === 'protanomaly'
+                  ? 'rgba(255, 230, 230, 0.3)'
+                  : visionMode === 'deuteranomaly'
+                    ? 'rgba(230, 255, 230, 0.3)'
+                    : visionMode === 'tritanomaly'
+                      ? 'rgba(230, 230, 255, 0.3)'
+                      : visionMode === 'achromatopsia'
+                        ? 'rgba(220, 220, 220, 0.2)'
+                        : 'transparent'
             }}
           />
         )}
@@ -143,7 +373,7 @@ export default function Home() {
         {/* Settings button - positioned at the top left with animation */}
         <div className={`absolute top-2 left-2 z-40 transition-transform duration-300 ${isNavOpen ? 'translate-x-64 rotate-90' : ''}`}>
           <button
-            className="bg-gray-800 text-white p-2 rounded-full flex items-center justify-center"
+            className="bg-gray-800 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center"
             onClick={toggleNav}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -152,10 +382,12 @@ export default function Home() {
             </svg>
           </button>
         </div>
-        
+
         {/* User button - positioned at the top right */}
         <div className="absolute top-2 right-2 z-40">
-          <UserButton/>
+          <div className="w-10 h-10 flex items-center justify-center">
+            <UserButton />
+          </div>
         </div>
 
         {/* Fullscreen prompt */}
@@ -185,15 +417,14 @@ export default function Home() {
       </div>
 
       {/* Bottom section with results */}
-      <div
-        className="bg-black z-30"
-        style={{ height: `${100 - guideLinePosition}%` }}
-      >
+      <div className="bg-black z-30" style={{ height: `${100 - guideLinePosition}%` }}>
         <ResultPanel
           label={detectedObject.label}
           confidence={detectedObject.confidence}
-          isAiActive={isAiActive}
+          isAiActive={isActive}
           onToggleAI={toggleAI}
+          serverStatus={serverStatus}
+          serverAddress={serverAddress}
         />
       </div>
     </div>
