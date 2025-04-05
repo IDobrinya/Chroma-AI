@@ -18,12 +18,12 @@ interface CameraViewProps {
 }
 
 const CameraView: React.FC<CameraViewProps> = ({
-                                                 isActive,
-                                                 onImageCapture,
-                                                 socket,
-                                                 onResult,
-                                                 serverStatus = 'disconnected'
-                                               }) => {
+  isActive,
+  onImageCapture,
+  socket,
+  onResult,
+  serverStatus = 'disconnected'
+}) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
