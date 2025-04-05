@@ -273,6 +273,24 @@ export default function Home() {
     }
   };
 
+  // Define colorblind-friendly color sets for different vision modes
+  const getColorScheme = (mode: VisionMode) => {
+    // Each array contains colors for [green, red, yellow] in order
+    switch(mode) {
+      case 'protanomaly': // Red-weak, enhance distinction between red and green
+        return ['#00DDDD', '#FFAAAA', '#EEEE00'];
+      case 'deuteranomaly': // Green-weak, enhance distinction
+        return ['#0088FF', '#FF5555', '#EEEE00'];
+      case 'tritanomaly': // Blue-yellow weakness
+        return ['#00DD88', '#FF4444', '#FFFFFF'];
+      case 'achromatopsia': // No color perception (monochromacy)
+        return ['#FFFFFF', '#666666', '#BBBBBB'];
+      case 'normal':
+      default:
+        return ['green', 'red', 'yellow'];
+    }
+  };
+
   // Create canvas overlay for bounding boxes
   const createOverlayImage = (data: DetectionItem[]) => {
     if (!data || data.length === 0) {
@@ -289,6 +307,10 @@ export default function Home() {
     ctx.clearRect(0, 0, width, height);
     const widthCoef = width / 640;
     const heightCoef = height / 640;
+    
+    // Get appropriate color scheme based on current vision mode
+    const colors = getColorScheme(visionMode);
+    
     data.forEach(item => {
       if (Array.isArray(item) && item.length === 6) {
         const x1 = item[0] * widthCoef;
@@ -296,7 +318,6 @@ export default function Home() {
         const x2 = item[2] * widthCoef;
         const y2 = item[3] * heightCoef;
         const label = item[5];
-        const colors = ['green', 'red', 'yellow'];
         ctx.strokeStyle = colors[Math.floor(label)] || 'white';
         ctx.lineWidth = 3;
         ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
@@ -430,6 +451,7 @@ export default function Home() {
           onToggleAI={toggleAI}
           serverStatus={serverStatus}
           serverAddress={serverAddress}
+          visionMode={visionMode}
         />
       </div>
     </div>
