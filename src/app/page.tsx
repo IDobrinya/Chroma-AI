@@ -45,6 +45,7 @@ export default function Home() {
   useEffect(() => {
     if (!isSignedIn) {
       router.push('/sign-in');
+      return
     }
   }, [isSignedIn, router]);
 
@@ -171,13 +172,17 @@ export default function Home() {
   // Toggle the AI processing
   const toggleAI = () => {
     if (!isActive) {
-      setServerStatus('checking');
+      // Only trigger if server address is configured
+      if (serverAddress && serverAddress.trim() !== '') {
+        setServerStatus('checking');
+        setActive(true);
+      }
     } else {
       manualDisconnectRef.current = true;
       setDetectedObject({ label: 'Ничего', confidence: 0 });
       setOverlayImage(null);
+      setActive(false);
     }
-    setActive(!isActive);
   };
 
   // Handle server address change

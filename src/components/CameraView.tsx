@@ -41,6 +41,7 @@ const CameraView: React.FC<CameraViewProps> = ({
 
           if (videoRef.current) {
             videoRef.current.srcObject = newStream;
+            videoRef.current.play().catch(e => console.error('Error playing video:', e));
             setStream(newStream);
             setHasPermission(true);
             setError(null);
@@ -143,7 +144,7 @@ const CameraView: React.FC<CameraViewProps> = ({
         playsInline
         className="w-full h-full object-cover"
         onLoadedMetadata={() => {
-          if (videoRef.current) videoRef.current.play();
+          if (videoRef.current) videoRef.current.play().catch(e => console.error('Error playing video:', e));
         }}
       />
 

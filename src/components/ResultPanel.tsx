@@ -53,20 +53,20 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
           </>
         ) : serverStatus === 'checking' ? (
           <div className="font-mono text-3xl text-center text-yellow-400">
-            Проверка подключения
+            Подключение...
           </div>
         ) : (
           <div className="font-mono text-3xl text-center text-red-400">
-            Ошибка подключения
+            Ошибка
           </div>
         )
       ) : serverAddress && serverAddress.length > 0 ? (
         <div className="font-mono text-3xl text-center text-gray-400">
-          Нажмите, чтобы подключиться
+          Нажмите для запуска
         </div>
       ) : (
         <div className="font-mono text-3xl text-center text-yellow-400">
-          Необходимо настроить подключение к серверу
+          Настройте сервер
         </div>
       )}
     </div>
