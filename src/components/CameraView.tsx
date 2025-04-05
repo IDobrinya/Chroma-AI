@@ -1,6 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
 
-// Define the type for server response data
 interface DetectionItem extends Array<number> {
   0: number; // x1
   1: number; // y1
@@ -19,12 +18,12 @@ interface CameraViewProps {
 }
 
 const CameraView: React.FC<CameraViewProps> = ({
-  isActive,
-  onImageCapture,
-  socket,
-  onResult,
-  serverStatus = 'disconnected'
-}) => {
+                                                 isActive,
+                                                 onImageCapture,
+                                                 socket,
+                                                 onResult,
+                                                 serverStatus = 'disconnected'
+                                               }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,10 +37,8 @@ const CameraView: React.FC<CameraViewProps> = ({
           const newStream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'environment' }
           });
-
           if (videoRef.current) {
             videoRef.current.srcObject = newStream;
-            videoRef.current.play().catch(e => console.error('Error playing video:', e));
             setStream(newStream);
             setHasPermission(true);
             setError(null);
@@ -57,18 +54,14 @@ const CameraView: React.FC<CameraViewProps> = ({
     void setupCamera();
 
     return () => {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      const currentVideo = videoRef.current;
-      const currentStream = stream;
-
-      if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
       }
-      if (currentVideo) {
-        currentVideo.srcObject = null;
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
       }
     };
-  }, [stream]);
+  }, []);
 
   // Function to capture current frame and send it via WebSocket
   const captureFrame = React.useCallback(() => {
@@ -144,10 +137,9 @@ const CameraView: React.FC<CameraViewProps> = ({
         playsInline
         className="w-full h-full object-cover"
         onLoadedMetadata={() => {
-          if (videoRef.current) videoRef.current.play().catch(e => console.error('Error playing video:', e));
+          if (videoRef.current) videoRef.current.play();
         }}
       />
-
       {hasPermission === false && (
         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-80 text-white text-center p-4">
           <div>
@@ -156,13 +148,11 @@ const CameraView: React.FC<CameraViewProps> = ({
           </div>
         </div>
       )}
-
       {!stream && (
         <div className="absolute inset-0 flex items-center justify-center bg-black text-white">
           <p>Initializing camera...</p>
         </div>
       )}
-
       {isActive && stream && (
         <div className="absolute top-4 right-4">
           <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse"></div>
