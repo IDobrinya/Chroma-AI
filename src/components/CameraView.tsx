@@ -64,7 +64,8 @@ const CameraView: React.FC<CameraViewProps> = ({
         videoRef.current.srcObject = null;
       }
     };
-  }, [stream]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Function to capture current frame and send it via WebSocket
   const captureFrame = React.useCallback(() => {
