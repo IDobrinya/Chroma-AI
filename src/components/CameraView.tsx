@@ -28,6 +28,8 @@ const CameraView: React.FC<CameraViewProps> = ({
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [captureInterval, setCaptureInterval] = useState<number>(250);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize camera stream once on component mount
   useEffect(() => {
@@ -58,10 +60,11 @@ const CameraView: React.FC<CameraViewProps> = ({
         stream.getTracks().forEach(track => track.stop());
       }
       if (videoRef.current) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         videoRef.current.srcObject = null;
       }
     };
-  }, []);
+  }, [stream]);
 
   // Function to capture current frame and send it via WebSocket
   const captureFrame = React.useCallback(() => {
@@ -100,14 +103,23 @@ const CameraView: React.FC<CameraViewProps> = ({
     if (!isActive || !stream) return;
     if (socket && serverStatus !== 'connected') return;
 
-    const captureInterval = setInterval(() => {
+    // Clear existing interval
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    // Set new interval
+    intervalRef.current = setInterval(() => {
       captureFrame();
-    }, 250);
+    }, captureInterval);
 
     return () => {
-      clearInterval(captureInterval);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
-  }, [isActive, stream, socket, captureFrame, serverStatus]);
+  }, [isActive, stream, socket, captureFrame, serverStatus, captureInterval]);
 
   // Listen for WebSocket responses from the server
   useEffect(() => {
@@ -116,6 +128,16 @@ const CameraView: React.FC<CameraViewProps> = ({
     const handleSocketResult = (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data);
+        
+        // Check if this is an interval control message
+        if (data.type === 'set_interval' && typeof data.interval === 'number') {
+          const newInterval = Math.max(50, Math.min(1000, data.interval));
+          setCaptureInterval(newInterval);
+          console.log(`Capture interval set to ${newInterval}ms`);
+          return;
+        }
+        
+        // Handle regular detection results
         onResult(data);
       } catch (error) {
         console.error('Error parsing socket result:', error);
