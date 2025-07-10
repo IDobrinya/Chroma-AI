@@ -23,7 +23,7 @@ interface UserSettings {
 
 export default function Home() {
   const router = useRouter();
-  const { getToken, isSignedIn } = useAuth();
+  const {isSignedIn } = useAuth();
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [isActive, setActive] = useState(false);
   const [guideLinePosition, setGuideLinePosition] = useState(70);
@@ -99,20 +99,8 @@ export default function Home() {
           wsRef.current = null;
         }
 
-        // Get auth token
-        const token = await getToken();
-        if (!token) {
-          console.error('Authentication token not available');
-          setServerStatus('disconnected');
-          return;
-        }
-
         // Open WebSocket connection
         const ws = new WebSocket(serverAddress);
-
-        ws.onopen = () => {
-          ws.send(JSON.stringify({ token }));
-        };
 
         ws.onmessage = (event) => {
           const msg = JSON.parse(event.data);
@@ -157,9 +145,10 @@ export default function Home() {
         wsRef.current = null;
       }
     };
-  }, [serverAddress, isActive, getToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverAddress, isActive]);
 
-  // Reset server status when server address changes
+  // Reset server status when the server address changes
   useEffect(() => {
     setServerStatus('disconnected');
   }, [serverAddress]);
