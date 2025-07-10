@@ -1,0 +1,78 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+
+const ConnectPage: React.FC = () => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [token, setToken] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const tokenParam = searchParams.get('token');
+    
+    if (!tokenParam) {
+      setError('Token invalid or missing');
+      setIsProcessing(false);
+      return;
+    }
+
+    setToken(tokenParam);
+    
+    console.log('Extracted token from URL:', tokenParam);
+    
+    setTimeout(() => {
+      setIsProcessing(false);
+      router.push('/');
+    }, 1000);
+
+  }, [router, searchParams]);
+
+  const handleTokenConnect = (tokenValue: string) => {
+    console.log('Processing token:', tokenValue);
+    
+    // TODO: Add token processing logic here
+    
+    return true;
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as unknown as { handleTokenConnect: (tokenValue: string) => boolean }).handleTokenConnect = handleTokenConnect;    }
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
+      <div className="bg-gray-800 p-8 rounded-lg shadow-lg max-w-md w-full text-center">
+        {isProcessing ? (
+          <div className="space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+            <p className="text-gray-400">Проверка токена...</p>
+          </div>
+        ) : error ? (
+          <div className="space-y-4">
+            <div className="bg-red-600 text-white p-3 rounded">
+              {error}
+            </div>
+            <button
+                onClick={() => router.push('/')}
+                className="bg-green-900 text-white p-3 rounded px-4 py-2"
+            >
+              Попробуйте ввести токен вручную
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-green-600 text-white p-3 rounded">
+              Токен подтвержден
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ConnectPage;

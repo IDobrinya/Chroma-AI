@@ -17,7 +17,7 @@ type ServerStatus = 'connected' | 'disconnected' | 'checking' | 'error';
 
 // User settings interface
 interface UserSettings {
-  serverAddress: string;
+  serverToken: string;
   visionMode: VisionMode;
 }
 
@@ -29,7 +29,7 @@ export default function Home() {
   const [guideLinePosition, setGuideLinePosition] = useState(70);
   const [visionMode, setVisionMode] = useState<VisionMode>('normal');
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [serverAddress, setServerAddress] = useState<string>('');
+  const [serverToken, setServerToken] = useState<string>('');
   const [serverStatus, setServerStatus] = useState<ServerStatus>('disconnected');
   const wsRef = useRef<WebSocket | null>(null);
   const manualDisconnectRef = useRef<boolean>(false);
@@ -40,6 +40,7 @@ export default function Home() {
     confidence: 0
   });
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [showQRMessage, setShowQRMessage] = useState(false);
 
   // Redirect to sign-in page if not signed in
   useEffect(() => {
@@ -56,8 +57,8 @@ export default function Home() {
       if (savedSettings) {
         try {
           const settings: UserSettings = JSON.parse(savedSettings);
-          if (settings.serverAddress) {
-            setServerAddress(settings.serverAddress);
+          if (settings.serverToken) {
+            setServerToken(settings.serverToken);
           }
           if (settings.visionMode) {
             setVisionMode(settings.visionMode);
@@ -70,21 +71,28 @@ export default function Home() {
     }
   }, [isSignedIn, isInitialLoad]);
 
+  // Show QR message when no server is connected
+  useEffect(() => {
+    if (isSignedIn && !isInitialLoad) {
+      setShowQRMessage(!serverToken || serverToken.trim() === '');
+    }
+  }, [isSignedIn, isInitialLoad, serverToken]);
+
   // Save user settings to cookies when they change
   useEffect(() => {
     if (isSignedIn && !isInitialLoad) {
       const settings: UserSettings = {
-        serverAddress,
+        serverToken,
         visionMode
       };
       setCookie('userSettings', JSON.stringify(settings));
     }
-  }, [serverAddress, visionMode, isSignedIn, isInitialLoad]);
+  }, [serverToken, visionMode, isSignedIn, isInitialLoad]);
 
-  // Connect to WebSocket server when server address changes or when AI is activated
+  // Connect to WebSocket server when server token changes or when AI is activated
   useEffect(() => {
     const connectToServer = async () => {
-      if (!serverAddress || !isActive) {
+      if (!serverToken || !isActive) {
         return;
       }
 
@@ -99,8 +107,8 @@ export default function Home() {
           wsRef.current = null;
         }
 
-        // Open WebSocket connection
-        const ws = new WebSocket(serverAddress);
+        // TODO: Use serverToken to construct WebSocket URL
+        const ws = new WebSocket(serverToken);
 
         ws.onmessage = (event) => {
           const msg = JSON.parse(event.data);
@@ -146,12 +154,12 @@ export default function Home() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverAddress, isActive]);
+  }, [serverToken, isActive]);
 
-  // Reset server status when the server address changes
+  // Reset server status when the server token changes
   useEffect(() => {
     setServerStatus('disconnected');
-  }, [serverAddress]);
+  }, [serverToken]);
 
   // Toggle the navigation drawer
   const toggleNav = () => {
@@ -161,8 +169,8 @@ export default function Home() {
   // Toggle the AI processing
   const toggleAI = () => {
     if (!isActive) {
-      // Only trigger if server address is configured
-      if (serverAddress && serverAddress.trim() !== '') {
+      // Only trigger if server token is configured
+      if (serverToken && serverToken.trim() !== '') {
         setServerStatus('checking');
         setActive(true);
       }
@@ -174,11 +182,40 @@ export default function Home() {
     }
   };
 
-  // Handle server address change
-  const handleServerAddressChange = (address: string) => {
-    setServerAddress(address);
+  // Handle server token change
+  const handleServerTokenChange = (token: string) => {
+    setServerToken(token);
+    handleTokenConnect(token);
     const settings: UserSettings = {
-      serverAddress: address,
+      serverToken: token,
+      visionMode
+    };
+    setCookie('userSettings', JSON.stringify(settings));
+  };
+
+  const handleTokenConnect = (tokenValue: string) => {
+    console.log('Processing token:', tokenValue);
+    
+    // TODO: Add token processing logic here
+
+    return true;
+  };
+
+  // Handle disconnect
+  const handleDisconnect = () => {
+    manualDisconnectRef.current = true;
+    setServerToken('');
+    setDetectedObject({ label: 'Ничего', confidence: 0 });
+    setOverlayImage(null);
+    setActive(false);
+    setServerStatus('disconnected');
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    // Clear settings
+    const settings: UserSettings = {
+      serverToken: '',
       visionMode
     };
     setCookie('userSettings', JSON.stringify(settings));
@@ -216,7 +253,7 @@ export default function Home() {
     setVisionMode(mode);
     setIsNavOpen(false);
     const settings: UserSettings = {
-      serverAddress,
+      serverToken,
       visionMode: mode
     };
     setCookie('userSettings', JSON.stringify(settings));
@@ -331,9 +368,9 @@ export default function Home() {
           onClose={() => setIsNavOpen(false)}
           onModeSelect={handleVisionModeChange}
           currentMode={visionMode}
-          serverAddress={serverAddress}
-          onServerAddressChange={handleServerAddressChange}
-          serverStatus={serverStatus}
+          serverToken={serverToken}
+          onServerTokenChange={handleServerTokenChange}
+          onDisconnect={handleDisconnect}
         />
 
         {/* Camera view component */}
@@ -439,10 +476,25 @@ export default function Home() {
           isAiActive={isActive}
           onToggleAI={toggleAI}
           serverStatus={serverStatus}
-          serverAddress={serverAddress}
+          serverAddress={serverToken}
           visionMode={visionMode}
         />
       </div>
+
+      {/* QR Scanning Message */}
+      {showQRMessage && (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg">
+          <div className="flex items-center space-x-3">
+            <span className="text-sm font-medium">Сканируйте QR-код камерой или введите токен в настройках</span>
+            <button
+              onClick={() => setIsNavOpen(true)}
+              className="bg-white text-blue-600 px-3 py-1 rounded text-sm font-medium hover:bg-gray-100"
+            >
+              Настройки
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
