@@ -8,7 +8,7 @@ interface ResultPanelProps {
   isAiActive?: boolean;
   onToggleAI?: () => void;
   serverStatus?: 'connected' | 'disconnected' | 'checking' | 'error';
-  serverAddress?: string;
+  serverToken?: string;
   visionMode?: VisionMode;
 }
 
@@ -18,7 +18,7 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
   isAiActive = false,
   onToggleAI,
   serverStatus = 'disconnected',
-  serverAddress = '',
+  serverToken = '',
   visionMode = 'normal'
 }) => {
   // Format confidence as percentage
@@ -96,13 +96,13 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
             Ошибка
           </div>
         )
-      ) : serverAddress && serverAddress.length > 0 ? (
+      ) : serverToken && serverToken.length > 0 ? (
         <div className="font-mono text-3xl text-center text-gray-400">
           Нажмите для запуска
         </div>
       ) : (
         <div className="font-mono text-3xl text-center text-yellow-400">
-          Настройте сервер
+          Перейдите в настройки
         </div>
       )}
     </div>

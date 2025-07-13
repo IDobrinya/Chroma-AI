@@ -2,46 +2,94 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@clerk/nextjs';
+import { serverRegistryAPI } from '@/utils/serverRegistry';
+import { setCookie } from '@/utils/cookies';
 
 const ConnectPage: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const {isSignedIn, userId } = useAuth();
   const [token, setToken] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const tokenParam = searchParams.get('token');
-    
-    if (!tokenParam) {
-      setError('Token invalid or missing');
-      setIsProcessing(false);
-      return;
+    const processToken = async () => {
+      const tokenParam = searchParams.get('token');
+      
+      if (!tokenParam) {
+        setError('Token invalid or missing');
+        setIsProcessing(false);
+        return;
+      }
+
+      if (!isSignedIn) {
+        setError('Sign in first');
+        setIsProcessing(false);
+        return;
+      }
+
+      setToken(tokenParam);
+      console.log('Extracted token from URL:', token);
+      
+      try {
+        const success = await handleTokenConnect(tokenParam);
+        if (success) {
+          setTimeout(() => {
+            setIsProcessing(false);
+            router.push('/');
+          }, 1000);
+        } else {
+          setError('Failed to link server');
+          setIsProcessing(false);
+        }
+      } catch (error) {
+        console.error('Error processing token:', error);
+        setError('Error processing token');
+        setIsProcessing(false);
+      }
+    };
+
+    processToken().then(() => null);
+  }, [router, searchParams, isSignedIn]);
+
+  const handleTokenConnect = async (tokenValue: string) => {
+    console.log('Processing token:', tokenValue);
+
+    if (!userId) {
+      console.error('User not authenticated');
+      return false;
     }
 
-    setToken(tokenParam);
-    
-    console.log('Extracted token from URL:', tokenParam);
-    
-    setTimeout(() => {
-      setIsProcessing(false);
-      router.push('/');
-    }, 1000);
+    try {
+      const result = await serverRegistryAPI.linkServer(tokenValue, userId);
+      if (result.success) {
+        console.log('Server linked successfully');
 
-  }, [router, searchParams]);
-
-  const handleTokenConnect = (tokenValue: string) => {
-    console.log('Processing token:', tokenValue);
-    
-    // TODO: Add token processing logic here
-    
-    return true;
+        const serverInfo = await serverRegistryAPI.getUserServer(userId);
+        if (serverInfo.success && serverInfo.data) {
+          const settings = {
+            serverToken: serverInfo.data.bridge_url,
+            visionMode: 'normal'
+          };
+          setCookie('userSettings', JSON.stringify(settings));
+        }
+        return true;
+      } else {
+        console.error('Failed to link server:', result.message);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error linking server:', error);
+      return false;
+    }
   };
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      (window as unknown as { handleTokenConnect: (tokenValue: string) => boolean }).handleTokenConnect = handleTokenConnect;    }
-  }, []);
+  // useEffect(() => {
+  //   if (typeof window !== 'undefined') {
+  //     (window as unknown as { handleTokenConnect: (tokenValue: string) => boolean }).handleTokenConnect = handleTokenConnect;    }
+  // }, []);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
