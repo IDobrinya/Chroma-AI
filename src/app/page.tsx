@@ -7,7 +7,8 @@ import CameraView from '../components/CameraView';
 import ResultPanel from '../components/ResultPanel';
 import { useRouter } from 'next/navigation';
 import { useAuth, UserButton } from '@clerk/nextjs';
-import { setCookie, getCookie } from '@/utils/cookies';
+import { setCookie } from '@/utils/cookies';
+import { serverRegistryAPI } from '@/utils/serverRegistry';
 
 // Vision modes
 type VisionMode = 'normal' | 'protanomaly' | 'deuteranomaly' | 'tritanomaly' | 'achromatopsia';
@@ -15,21 +16,25 @@ type VisionMode = 'normal' | 'protanomaly' | 'deuteranomaly' | 'tritanomaly' | '
 // Server connection status
 type ServerStatus = 'connected' | 'disconnected' | 'checking' | 'error';
 
+// Token status for navigationView
+type TokenStatus = 'valid' | 'invalid' | 'not_set';
+
 // User settings interface
 interface UserSettings {
-  serverAddress: string;
+  serverToken: string;
   visionMode: VisionMode;
 }
 
 export default function Home() {
   const router = useRouter();
-  const {isSignedIn } = useAuth();
+  const { isSignedIn, userId } = useAuth();
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [isActive, setActive] = useState(false);
   const [guideLinePosition, setGuideLinePosition] = useState(70);
   const [visionMode, setVisionMode] = useState<VisionMode>('normal');
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [serverAddress, setServerAddress] = useState<string>('');
+  const [serverToken, setServerToken] = useState<string>('');
+  const [tokenStatus, setTokenStatus] = useState<TokenStatus>('not_set');
   const [serverStatus, setServerStatus] = useState<ServerStatus>('disconnected');
   const wsRef = useRef<WebSocket | null>(null);
   const manualDisconnectRef = useRef<boolean>(false);
@@ -39,52 +44,57 @@ export default function Home() {
     label: 'Ничего',
     confidence: 0
   });
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [showQRMessage, setShowQRMessage] = useState(false);
 
-  // Redirect to sign-in page if not signed in
   useEffect(() => {
-    if (!isSignedIn) {
+    if (isSignedIn === false) {
       router.push('/sign-in');
-      return
+      return;
+    }
+    if (isSignedIn === undefined) {
+      return;
     }
   }, [isSignedIn, router]);
 
-  // Load user settings from cookies on initial load
   useEffect(() => {
-    if (isSignedIn && isInitialLoad) {
-      const savedSettings = getCookie('userSettings');
-      if (savedSettings) {
+    const registerUser = async () => {
+      if (isSignedIn && userId) {
         try {
-          const settings: UserSettings = JSON.parse(savedSettings);
-          if (settings.serverAddress) {
-            setServerAddress(settings.serverAddress);
-          }
-          if (settings.visionMode) {
-            setVisionMode(settings.visionMode);
+          const result = await serverRegistryAPI.createUser(userId);
+          if (!result.success) {
+            console.warn('User registration failed:', result.message);
           }
         } catch (error) {
-          console.error('Error parsing saved settings:', error);
+          console.error('Error during user registration:', error);
         }
       }
-      setIsInitialLoad(false);
+    };
+
+    registerUser().then(() => null);
+  }, [isSignedIn, userId]);
+
+  // Show QR message when no server is connected
+  useEffect(() => {
+    if (isSignedIn) {
+      setShowQRMessage(!serverToken || serverToken.trim() === '');
     }
-  }, [isSignedIn, isInitialLoad]);
+  }, [isSignedIn, serverToken]);
 
   // Save user settings to cookies when they change
   useEffect(() => {
-    if (isSignedIn && !isInitialLoad) {
+    if (isSignedIn) {
       const settings: UserSettings = {
-        serverAddress,
+        serverToken,
         visionMode
       };
       setCookie('userSettings', JSON.stringify(settings));
     }
-  }, [serverAddress, visionMode, isSignedIn, isInitialLoad]);
+  }, [serverToken, visionMode, isSignedIn]);
 
-  // Connect to WebSocket server when server address changes or when AI is activated
+  // Connect to WebSocket server when server token changes or when AI is activated
   useEffect(() => {
     const connectToServer = async () => {
-      if (!serverAddress || !isActive) {
+      if (!serverToken || !isActive || !userId) {
         return;
       }
 
@@ -93,44 +103,52 @@ export default function Home() {
         attemptRef.current += 1;
         const currentAttempt = attemptRef.current;
 
-        // Close existing connection
         if (wsRef.current) {
           wsRef.current.close();
           wsRef.current = null;
         }
 
-        // Open WebSocket connection
-        const ws = new WebSocket(serverAddress);
+        try {
+          const server_info = await serverRegistryAPI.getUserServer(userId);
 
-        ws.onmessage = (event) => {
-          const msg = JSON.parse(event.data);
-          if (msg.status && msg.status !== 'success') {
-            console.error('Authorization failed:', msg.message);
-            ws.close();
-            setServerStatus('error');
-          } else if (msg.status && msg.status === 'success') {
-            setServerStatus('connected');
-          } else {
-            handleSocketResult(msg);
+          if (server_info.success && server_info.data) {
+            const serverUrl = server_info.data.bridge_url
+            const ws = new WebSocket(serverUrl);
+
+            ws.onmessage = (event) => {
+              const msg = JSON.parse(event.data);
+              if (msg.status && msg.status !== 'success') {
+                console.error('Authorization failed:', msg.message);
+                ws.close();
+                setServerStatus('error');
+              } else if (msg.status && msg.status === 'success') {
+                setServerStatus('connected');
+              } else {
+                handleSocketResult(msg);
+              }
+            };
+
+            ws.onclose = () => {
+              if (currentAttempt === attemptRef.current && !manualDisconnectRef.current) {
+                console.error('WebSocket closed unexpectedly');
+                setServerStatus('error');
+              }
+              setDetectedObject({ label: 'Ничего', confidence: 0 });
+              setOverlayImage(null);
+              manualDisconnectRef.current = false;
+            };
+
+            ws.onerror = (error) => {
+              console.error('WebSocket error:', error);
+              setServerStatus('error');
+            };
+
+            wsRef.current = ws;
           }
-        };
-
-        ws.onclose = () => {
-          if (currentAttempt === attemptRef.current && !manualDisconnectRef.current) {
-            console.error('WebSocket closed unexpectedly');
-            setServerStatus('error');
-          }
-          setDetectedObject({ label: 'Ничего', confidence: 0 });
-          setOverlayImage(null);
-          manualDisconnectRef.current = false;
-        };
-
-        ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
+        } catch (error) {
+          console.error('Error setting up WebSocket connection:', error);
           setServerStatus('error');
-        };
-
-        wsRef.current = ws;
+        }
       } catch (error) {
         console.error('Error setting up WebSocket connection:', error);
         setServerStatus('error');
@@ -145,24 +163,19 @@ export default function Home() {
         wsRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverAddress, isActive]);
+  }, [serverToken, isActive]);
 
-  // Reset server status when the server address changes
   useEffect(() => {
     setServerStatus('disconnected');
-  }, [serverAddress]);
+  }, [serverToken]);
 
-  // Toggle the navigation drawer
   const toggleNav = () => {
     setIsNavOpen(!isNavOpen);
   };
 
-  // Toggle the AI processing
   const toggleAI = () => {
     if (!isActive) {
-      // Only trigger if server address is configured
-      if (serverAddress && serverAddress.trim() !== '') {
+      if (serverToken && serverToken.trim() !== '') {
         setServerStatus('checking');
         setActive(true);
       }
@@ -174,11 +187,66 @@ export default function Home() {
     }
   };
 
-  // Handle server address change
-  const handleServerAddressChange = (address: string) => {
-    setServerAddress(address);
+  const handleServerTokenChange = async (token: string) => {
+    if (!userId) {
+      console.error('User not authenticated');
+      setServerToken("");
+      setTokenStatus('invalid');
+      return;
+    }
+
+    if (!token || token.trim() === '') {
+      setServerToken("");
+      setTokenStatus('not_set');
+      return;
+    }
+
+    try {
+      const result = await serverRegistryAPI.linkServer(userId, token);
+      if (result.success) {
+        const serverInfo = await serverRegistryAPI.getUserServer(userId);
+        if (serverInfo.success && serverInfo.data) {
+          setServerToken(token);
+          const settings: UserSettings = {
+            serverToken: token,
+            visionMode
+          };
+          setCookie('userSettings', JSON.stringify(settings));
+          setTokenStatus('valid');
+          return;
+        }
+      }
+      console.error('Failed to link server or get server info');
+      setServerToken("");
+      setTokenStatus('invalid');
+    } catch (error) {
+      console.error('Error linking server:', error);
+      setServerToken("");
+      setTokenStatus('invalid');
+    }
+  };
+
+  const handleDisconnect = async () => {
+    manualDisconnectRef.current = true;
+    setServerToken("");
+    setTokenStatus('not_set');
+    setDetectedObject({ label: 'Ничего', confidence: 0 });
+    setOverlayImage(null);
+    setActive(false);
+    setServerStatus('disconnected');
+
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
+    if (userId && serverToken) {
+      await serverRegistryAPI.unlinkServer(userId)
+    }
+
+    // Clear settings
     const settings: UserSettings = {
-      serverAddress: address,
+      serverToken: '',
       visionMode
     };
     setCookie('userSettings', JSON.stringify(settings));
@@ -216,7 +284,7 @@ export default function Home() {
     setVisionMode(mode);
     setIsNavOpen(false);
     const settings: UserSettings = {
-      serverAddress,
+      serverToken,
       visionMode: mode
     };
     setCookie('userSettings', JSON.stringify(settings));
@@ -331,9 +399,10 @@ export default function Home() {
           onClose={() => setIsNavOpen(false)}
           onModeSelect={handleVisionModeChange}
           currentMode={visionMode}
-          serverAddress={serverAddress}
-          onServerAddressChange={handleServerAddressChange}
-          serverStatus={serverStatus}
+          serverToken={serverToken}
+          tokenStatus={tokenStatus}
+          onServerTokenChange={handleServerTokenChange}
+          onDisconnect={handleDisconnect}
         />
 
         {/* Camera view component */}
@@ -439,10 +508,25 @@ export default function Home() {
           isAiActive={isActive}
           onToggleAI={toggleAI}
           serverStatus={serverStatus}
-          serverAddress={serverAddress}
+          serverToken={serverToken}
           visionMode={visionMode}
         />
       </div>
+
+      {/* QR Scanning Message */}
+      {showQRMessage && (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg">
+          <div className="flex items-center space-x-3">
+            <span className="text-sm font-medium">Сканируйте QR-код камерой или введите токен в настройках</span>
+            <button
+              onClick={() => setIsNavOpen(true)}
+              className="bg-white text-blue-600 px-3 py-1 rounded text-sm font-medium hover:bg-gray-100"
+            >
+              Настройки
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,47 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState} from 'react';
 
 type VisionMode = 'normal' | 'protanomaly' | 'deuteranomaly' | 'tritanomaly' | 'achromatopsia';
+
+type TokenStatus = 'valid' | 'invalid' | 'not_set';
 
 interface NavigationViewProps {
   isOpen: boolean;
   onClose: () => void;
   onModeSelect?: (mode: VisionMode) => void;
   currentMode?: VisionMode;
-  serverAddress?: string;
-  onServerAddressChange?: (address: string) => void;
-  serverStatus?: 'connected' | 'disconnected' | 'checking' | 'error';
+  serverToken?: string;
+  tokenStatus?: TokenStatus;
+  onServerTokenChange?: (token: string) => void;
+  onDisconnect?: () => void;
 }
 
 const NavigationView: React.FC<NavigationViewProps> = ({
   isOpen,
   onModeSelect,
-  onServerAddressChange,
+  onServerTokenChange,
+  onDisconnect,
   currentMode = 'normal',
-  serverAddress = '',
-  serverStatus = 'disconnected'
+  serverToken = '',
+  tokenStatus = 'not_set',
 }) => {
-  const [isAddressInputVisible, setIsAddressInputVisible] = useState(false);
-  const [tempServerAddress, setTempServerAddress] = useState(serverAddress);
-
-  // Update temp address when prop changes
-  useEffect(() => {
-    setTempServerAddress(serverAddress);
-  }, [serverAddress]);
+  const [isTokenInputVisible, setIsTokenInputVisible] = useState(false);
+  const [tempServerToken, setTempServerToken] = useState(serverToken);
 
   // Handle mode selection
   const handleModeSelect = (mode: VisionMode) => {
     if (onModeSelect) {
       onModeSelect(mode);
-    }
-  };
-
-  // Get status indicator color
-  const getStatusColor = () => {
-    switch (serverStatus) {
-      case 'connected': return 'bg-green-500';
-      case 'checking': return 'bg-yellow-500 animate-pulse';
-      case 'disconnected':
-      default: return 'bg-red-500';
     }
   };
 
@@ -55,56 +44,79 @@ const NavigationView: React.FC<NavigationViewProps> = ({
       </div>
 
       {/* Server settings section */}
-      <div className="border-b border-gray-700">
-        <div className="px-4 py-3 flex justify-between items-center">
-          <div className="min-w-0 mr-2 flex-1">
-            <h3 className="text-sm font-semibold">Сервер</h3>
-            <p className="text-xs text-gray-400 overflow-hidden text-ellipsis whitespace-nowrap">{serverAddress || 'Не настроен'}</p>
-          </div>
-          <div className="flex items-center flex-shrink-0">
-            <div className={`w-3 h-3 rounded-full mr-2 ${getStatusColor()}`}></div>
+
+      <div className="px-4 py-3">
+        <h3 className="text-sm font-semibold mb-2">Токен сервера</h3>
+        <div className="flex gap-2">
+          <button
+            className="text-sm bg-gray-700 py-1 px-2 rounded hover:bg-gray-600 w-full"
+            onClick={() => setIsTokenInputVisible(!isTokenInputVisible)}
+          >
+            Изменить
+          </button>
+          <button
+              onClick={() => {
+                onDisconnect?.();
+                if (onServerTokenChange) {
+                  onServerTokenChange('');
+                }
+                setTempServerToken("")
+                setIsTokenInputVisible(true);
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+          >
+            Отключиться
+          </button>
+        </div>
+    </div>
+
+      {isTokenInputVisible && (
+        <div className="px-4 py-2 bg-gray-700">
+          <input
+            type="text"
+            value={tempServerToken}
+            onChange={(e) => setTempServerToken(e.target.value)}
+            placeholder="Токен"
+            className="w-full p-2 mb-2 bg-gray-900 border border-gray-600 text-white text-sm rounded"
+          />
+          <div className="flex justify-end">
             <button
-              className="text-sm bg-gray-700 py-1 px-2 rounded hover:bg-gray-600 whitespace-nowrap"
-              onClick={() => setIsAddressInputVisible(!isAddressInputVisible)}
+              className="text-xs bg-gray-600 py-1 px-2 rounded mr-2 hover:bg-gray-500"
+              onClick={() => {
+                setTempServerToken(serverToken);
+                setIsTokenInputVisible(false);
+              }}
             >
-              Изменить
+              Отмена
+            </button>
+            <button
+              className="text-xs bg-blue-600 py-1 px-2 rounded hover:bg-blue-500"
+              onClick={() => {
+                if (onServerTokenChange) {
+                  onServerTokenChange(tempServerToken);
+                }
+                setTempServerToken(tempServerToken);
+                setIsTokenInputVisible(false);
+              }}
+            >
+              Сохранить
             </button>
           </div>
         </div>
+      )}
 
-        {isAddressInputVisible && (
-          <div className="px-4 py-2 bg-gray-700">
-            <input
-              type="text"
-              value={tempServerAddress}
-              onChange={(e) => setTempServerAddress(e.target.value)}
-              placeholder="Адрес сервера"
-              className="w-full p-2 mb-2 bg-gray-900 border border-gray-600 text-white text-sm rounded"
-            />
-            <div className="flex justify-end">
-              <button
-                className="text-xs bg-gray-600 py-1 px-2 rounded mr-2 hover:bg-gray-500"
-                onClick={() => {
-                  setTempServerAddress(serverAddress);
-                  setIsAddressInputVisible(false);
-                }}
-              >
-                Отмена
-              </button>
-              <button
-                className="text-xs bg-blue-600 py-1 px-2 rounded hover:bg-blue-500"
-                onClick={() => {
-                  if (onServerAddressChange) {
-                    onServerAddressChange(tempServerAddress);
-                  }
-                  setIsAddressInputVisible(false);
-                }}
-              >
-                Сохранить
-              </button>
-            </div>
-          </div>
-        )}
+      <div className={
+        `px-4 py-2 text-sm rounded mb-2 ${
+            tokenStatus === 'valid'
+                ? 'bg-green-100 text-green-800'
+                : tokenStatus === 'invalid'
+                    ? 'bg-red-100 text-red-800'
+                    : 'bg-yellow-100 text-yellow-800'
+        }`
+      }>
+        {tokenStatus === 'valid' && 'Токен валиден'}
+        {tokenStatus === 'invalid' && 'Токен невалиден'}
+        {tokenStatus === 'not_set' && 'Не установлен'}
       </div>
 
       <div className="px-4 py-2 text-sm text-gray-400 italic border-b border-gray-700">
