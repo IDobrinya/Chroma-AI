@@ -13,8 +13,8 @@ const GuideLine: React.FC<GuideLineProps> = ({
   initialPosition, 
   onPositionChange,
   orientation,
-  minPosition = 40,  // Minimum position from top/left (in percentage)
-  maxPosition = 80   // Maximum position from top/left (in percentage)
+  minPosition = 40,
+  maxPosition = 80
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState(initialPosition);
@@ -26,7 +26,6 @@ const GuideLine: React.FC<GuideLineProps> = ({
     const coord = orientation === 'portrait' ? clientY : clientX;
     let newPercentage = (coord / size) * 100;
     
-    // Apply constraints
     newPercentage = Math.max(minPosition, Math.min(maxPosition, newPercentage));
     
     setPosition(newPercentage);
@@ -60,7 +59,7 @@ const GuideLine: React.FC<GuideLineProps> = ({
   useEffect(() => {
     const handleTouchMove = (e: TouchEvent) => {
       if (isDragging && e.touches.length > 0) {
-        e.preventDefault(); // Prevent scrolling while dragging
+        e.preventDefault();
         handleMove(e.touches[0].clientX, e.touches[0].clientY);
       }
     };
@@ -90,7 +89,6 @@ const GuideLine: React.FC<GuideLineProps> = ({
     setIsDragging(true);
   };
 
-  // Calculate styles based on orientation
   const style = orientation === 'portrait'
     ? { top: `${position}%`, left: 0, right: 0, height: 2 }
     : { left: `${position}%`, top: 0, bottom: 0, width: 2 };
@@ -100,7 +98,7 @@ const GuideLine: React.FC<GuideLineProps> = ({
   return (
     <div 
       ref={guideRef}
-      className={`absolute bg-white/60 ${cursorClass} touch-none z-50 pointer-events-auto`}
+      className={`absolute bg-blue-500 ${cursorClass} touch-none z-50 pointer-events-auto`}
       style={style}
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
