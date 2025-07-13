@@ -178,6 +178,8 @@ export default function Home() {
       if (serverToken && serverToken.trim() !== '') {
         setServerStatus('checking');
         setActive(true);
+      } else {
+        setIsNavOpen(true)
       }
     } else {
       manualDisconnectRef.current = true;
@@ -282,7 +284,6 @@ export default function Home() {
   // Handle vision mode change
   const handleVisionModeChange = (mode: VisionMode) => {
     setVisionMode(mode);
-    setIsNavOpen(false);
     const settings: UserSettings = {
       serverToken,
       visionMode: mode
