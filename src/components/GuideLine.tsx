@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import type { Orientation } from '@/hooks/useOrientation';
 
 interface GuideLineProps {
   initialPosition: number;
   onPositionChange: (position: number) => void;
+  orientation: Orientation;
   minPosition?: number;
   maxPosition?: number;
 }
@@ -10,37 +12,31 @@ interface GuideLineProps {
 const GuideLine: React.FC<GuideLineProps> = ({ 
   initialPosition, 
   onPositionChange,
-  minPosition = 40,  // Minimum position from top (in percentage)
-  maxPosition = 80   // Maximum position from top (in percentage)
+  orientation,
+  minPosition = 40,
+  maxPosition = 80
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState(initialPosition);
   const guideRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   // Handle mouse/touch move events
-  const handleMove = (clientY: number) => {
-    if (containerRef.current) {
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const containerHeight = containerRect.height;
-      
-      // Calculate percentage position based on pointer position
-      const relativeY = clientY - containerRect.top;
-      let newPercentage = (relativeY / containerHeight) * 100;
-      
-      // Apply constraints
-      newPercentage = Math.max(minPosition, Math.min(maxPosition, newPercentage));
-      
-      setPosition(newPercentage);
-      onPositionChange(newPercentage);
-    }
+  const handleMove = (clientX: number, clientY: number) => {
+    const size = orientation === 'portrait' ? window.innerHeight : window.innerWidth;
+    const coord = orientation === 'portrait' ? clientY : clientX;
+    let newPercentage = (coord / size) * 100;
+    
+    newPercentage = Math.max(minPosition, Math.min(maxPosition, newPercentage));
+    
+    setPosition(newPercentage);
+    onPositionChange(newPercentage);
   };
 
   // Mouse events
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isDragging) {
-        handleMove(e.clientY);
+        handleMove(e.clientX, e.clientY);
       }
     };
 
@@ -57,14 +53,14 @@ const GuideLine: React.FC<GuideLineProps> = ({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging]);
+  }, [isDragging, orientation]);
 
   // Touch events
   useEffect(() => {
     const handleTouchMove = (e: TouchEvent) => {
       if (isDragging && e.touches.length > 0) {
-        e.preventDefault(); // Prevent scrolling while dragging
-        handleMove(e.touches[0].clientY);
+        e.preventDefault();
+        handleMove(e.touches[0].clientX, e.touches[0].clientY);
       }
     };
 
@@ -81,7 +77,7 @@ const GuideLine: React.FC<GuideLineProps> = ({
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [isDragging]);
+  }, [isDragging, orientation]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -93,18 +89,26 @@ const GuideLine: React.FC<GuideLineProps> = ({
     setIsDragging(true);
   };
 
+  const style = orientation === 'portrait'
+    ? { top: `${position}%`, left: 0, right: 0, height: 2 }
+    : { left: `${position}%`, top: 0, bottom: 0, width: 2 };
+
+  const cursorClass = orientation === 'portrait' ? 'cursor-ns-resize' : 'cursor-ew-resize';
+
   return (
-    <div ref={containerRef} className="relative h-full w-full pointer-events-none">
-      <div 
-        ref={guideRef}
-        className="absolute w-full h-1 bg-blue-500 cursor-ns-resize pointer-events-auto"
-        style={{ top: `${position}%` }}
-        onMouseDown={handleMouseDown}
-        onTouchStart={handleTouchStart}
-      >
-        {/* Handle for dragging - makes it easier to grab */}
-        <div className="absolute left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-blue-600 rounded-full" />
-      </div>
+    <div 
+      ref={guideRef}
+      className={`absolute bg-blue-500 ${cursorClass} touch-none z-50 pointer-events-auto`}
+      style={style}
+      onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
+    >
+      {/* Handle for dragging - makes it easier to grab */}
+      <div className={`absolute w-8 h-8 bg-blue-600 rounded-full ${
+        orientation === 'portrait' 
+          ? 'left-1/2 transform -translate-x-1/2 -translate-y-1/2' 
+          : 'top-1/2 transform -translate-x-1/2 -translate-y-1/2'
+      }`} />
     </div>
   );
 };

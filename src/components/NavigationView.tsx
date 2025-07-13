@@ -119,6 +119,8 @@ const NavigationView: React.FC<NavigationViewProps> = ({
         {tokenStatus === 'not_set' && 'Не установлен'}
       </div>
 
+      <div className="h-4 italic border-b border-gray-700" />
+
       <div className="px-4 py-2 text-sm text-gray-400 italic border-b border-gray-700">
         Выберите режим цветовой слепоты
       </div>

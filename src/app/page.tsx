@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth, UserButton } from '@clerk/nextjs';
 import { setCookie } from '@/utils/cookies';
 import { serverRegistryAPI } from '@/utils/serverRegistry';
+import { useOrientation } from '@/hooks/useOrientation';
 
 // Vision modes
 type VisionMode = 'normal' | 'protanomaly' | 'deuteranomaly' | 'tritanomaly' | 'achromatopsia';
@@ -28,6 +29,8 @@ interface UserSettings {
 export default function Home() {
   const router = useRouter();
   const { isSignedIn, userId } = useAuth();
+  const orientation = useOrientation();
+  const isLandscape = orientation === 'landscape';
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [isActive, setActive] = useState(false);
   const [guideLinePosition, setGuideLinePosition] = useState(70);
@@ -178,6 +181,8 @@ export default function Home() {
       if (serverToken && serverToken.trim() !== '') {
         setServerStatus('checking');
         setActive(true);
+      } else {
+        setIsNavOpen(true)
       }
     } else {
       manualDisconnectRef.current = true;
@@ -282,7 +287,6 @@ export default function Home() {
   // Handle vision mode change
   const handleVisionModeChange = (mode: VisionMode) => {
     setVisionMode(mode);
-    setIsNavOpen(false);
     const settings: UserSettings = {
       serverToken,
       visionMode: mode
@@ -355,8 +359,15 @@ export default function Home() {
       return;
     }
     const canvas = document.createElement('canvas');
-    const width = window.innerWidth;
-    const height = Math.floor(window.innerHeight * (guideLinePosition / 100));
+    
+    // Calculate dimensions based on orientation
+    const width = isLandscape
+      ? Math.floor(window.innerWidth * (guideLinePosition / 100))
+      : window.innerWidth;
+    const height = isLandscape
+      ? window.innerHeight
+      : Math.floor(window.innerHeight * (guideLinePosition / 100));
+    
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
@@ -385,9 +396,16 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-black overflow-hidden">
-      {/* Top section with camera/image */}
-      <div className="relative flex-grow overflow-hidden" style={{ height: `${guideLinePosition}%` }}>
+    <div className={`flex ${isLandscape ? 'flex-row' : 'flex-col'} h-screen bg-black overflow-hidden`}>
+      {/* Main content section (camera/image) */}
+      <div 
+        className="relative flex-shrink-0 overflow-hidden"
+        style={
+          isLandscape
+            ? { width: `${guideLinePosition}%` }
+            : { height: `${guideLinePosition}%` }
+        }
+      >
         {/* Navigation drawer overlay - closes drawer when clicking outside */}
         {isNavOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-10" onClick={() => setIsNavOpen(false)} />
@@ -476,7 +494,7 @@ export default function Home() {
 
         {/* Fullscreen prompt */}
         {!isFullscreen && (
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-40 bg-black bg-opacity-70 p-2 rounded">
+          <div className="fixed top-2 left-1/2 transform -translate-x-1/2 z-40 bg-black bg-opacity-70 p-2 rounded">
             <button
               className="bg-blue-600 text-white text-xs px-3 py-1 rounded flex items-center"
               onClick={enterFullscreen}
@@ -490,18 +508,26 @@ export default function Home() {
         )}
       </div>
 
-      {/* Guide line */}
+      {/* Guide line - spans across entire screen */}
       <div className="absolute inset-0 pointer-events-none z-50">
         <GuideLine
           initialPosition={guideLinePosition}
           onPositionChange={setGuideLinePosition}
-          minPosition={40}
+          orientation={orientation}
+          minPosition={20}
           maxPosition={80}
         />
       </div>
 
-      {/* Bottom section with results */}
-      <div className="bg-black z-30" style={{ height: `${100 - guideLinePosition}%` }}>
+      {/* Results section */}
+      <div 
+        className="bg-black flex-grow"
+        style={
+          isLandscape
+            ? { width: `${100 - guideLinePosition}%` }
+            : { height: `${100 - guideLinePosition}%` }
+        }
+      >
         <ResultPanel
           label={detectedObject.label}
           confidence={detectedObject.confidence}
