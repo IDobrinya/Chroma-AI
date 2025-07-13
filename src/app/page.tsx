@@ -514,7 +514,7 @@ export default function Home() {
           initialPosition={guideLinePosition}
           onPositionChange={setGuideLinePosition}
           orientation={orientation}
-          minPosition={40}
+          minPosition={20}
           maxPosition={80}
         />
       </div>
