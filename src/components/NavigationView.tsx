@@ -36,7 +36,7 @@ const NavigationView: React.FC<NavigationViewProps> = ({
 
   return (
     <div
-      className={`fixed left-0 top-0 h-full bg-gray-800 text-white transition-transform duration-300 ease-in-out w-64 z-20
+      className={`fixed left-0 top-0 h-full bg-gray-800 text-white transition-transform duration-300 ease-in-out w-64 z-[60] overflow-y-auto
        ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
     >
       <div className="p-4 border-b border-gray-700 flex justify-between items-center">

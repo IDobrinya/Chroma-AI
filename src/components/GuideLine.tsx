@@ -13,8 +13,8 @@ const GuideLine: React.FC<GuideLineProps> = ({
   initialPosition, 
   onPositionChange,
   orientation,
-  minPosition = 40,
-  maxPosition = 80
+  minPosition = 15,
+  maxPosition = 33
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState(initialPosition);
@@ -26,7 +26,10 @@ const GuideLine: React.FC<GuideLineProps> = ({
     const coord = orientation === 'portrait' ? clientY : clientX;
     let newPercentage = (coord / size) * 100;
     
-    newPercentage = Math.max(minPosition, Math.min(maxPosition, newPercentage));
+    const actualMinPosition = 100 - maxPosition;
+    const actualMaxPosition = 100 - minPosition;
+    
+    newPercentage = Math.max(actualMinPosition, Math.min(actualMaxPosition, newPercentage));
     
     setPosition(newPercentage);
     onPositionChange(newPercentage);

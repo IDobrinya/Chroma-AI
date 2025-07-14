@@ -33,12 +33,13 @@ export default function Home() {
   const isLandscape = orientation === 'landscape';
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [isActive, setActive] = useState(false);
-  const [guideLinePosition, setGuideLinePosition] = useState(70);
+  const [guideLinePosition, setGuideLinePosition] = useState(67);
   const [visionMode, setVisionMode] = useState<VisionMode>('normal');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [serverToken, setServerToken] = useState<string>('');
   const [tokenStatus, setTokenStatus] = useState<TokenStatus>('not_set');
   const [serverStatus, setServerStatus] = useState<ServerStatus>('disconnected');
+  const [areControlsVisible, setAreControlsVisible] = useState<boolean>(true);
   const wsRef = useRef<WebSocket | null>(null);
   const manualDisconnectRef = useRef<boolean>(false);
   const attemptRef = useRef<number>(0);
@@ -47,7 +48,6 @@ export default function Home() {
     label: 'Ничего',
     confidence: 0
   });
-  const [showQRMessage, setShowQRMessage] = useState(false);
 
   useEffect(() => {
     if (isSignedIn === false) {
@@ -75,13 +75,6 @@ export default function Home() {
 
     registerUser().then(() => null);
   }, [isSignedIn, userId]);
-
-  // Show QR message when no server is connected
-  useEffect(() => {
-    if (isSignedIn) {
-      setShowQRMessage(!serverToken || serverToken.trim() === '');
-    }
-  }, [isSignedIn, serverToken]);
 
   // Save user settings to cookies when they change
   useEffect(() => {
@@ -182,7 +175,7 @@ export default function Home() {
         setServerStatus('checking');
         setActive(true);
       } else {
-        setIsNavOpen(true)
+        toggleNav()
       }
     } else {
       manualDisconnectRef.current = true;
@@ -264,6 +257,11 @@ export default function Home() {
         .then(() => setIsFullscreen(true))
         .catch(err => console.error('Error attempting to enable fullscreen:', err));
     }
+  };
+
+  // Toggle controls visibility
+  const toggleControlsVisibility = () => {
+    setAreControlsVisible(!areControlsVisible);
   };
 
   // Open navbar if connection fails
@@ -406,11 +404,6 @@ export default function Home() {
             : { height: `${guideLinePosition}%` }
         }
       >
-        {/* Navigation drawer overlay - closes drawer when clicking outside */}
-        {isNavOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-10" onClick={() => setIsNavOpen(false)} />
-        )}
-
         {/* Navigation view */}
         <NavigationView
           isOpen={isNavOpen}
@@ -429,6 +422,18 @@ export default function Home() {
           socket={wsRef.current}
           onResult={handleSocketResult}
           serverStatus={serverStatus}
+        />
+
+        {/* Clickable overlay to toggle controls visibility */}
+        <div
+          className="absolute inset-0 z-20"
+          onClick={() => {
+            if (isNavOpen) {
+              toggleNav()
+            } else {
+              toggleControlsVisibility();
+            }
+          }}
         />
 
         {/* Overlay for bounding boxes */}
@@ -473,7 +478,10 @@ export default function Home() {
         )}
 
         {/* Settings button - positioned at the top left with animation */}
-        <div className={`absolute top-2 left-2 z-40 transition-transform duration-300 ${isNavOpen ? 'translate-x-64 rotate-90' : ''}`}>
+        <div
+          className={`absolute top-2 left-2 z-40 transition-all duration-300 ${isNavOpen ? 'translate-x-64 rotate-90' : ''}`}
+          style={{ opacity: areControlsVisible ? 1 : 0.1 }}
+        >
           <button
             className="bg-gray-800 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center"
             onClick={toggleNav}
@@ -486,7 +494,10 @@ export default function Home() {
         </div>
 
         {/* User button - positioned at the top right */}
-        <div className="absolute top-2 right-2 z-40">
+        <div
+          className="absolute top-2 right-2 z-40 transition-opacity duration-300"
+          style={{ opacity: areControlsVisible ? 1 : 0.1 }}
+        >
           <div className="w-10 h-10 flex items-center justify-center">
             <UserButton />
           </div>
@@ -494,7 +505,10 @@ export default function Home() {
 
         {/* Fullscreen prompt */}
         {!isFullscreen && (
-          <div className="fixed top-2 left-1/2 transform -translate-x-1/2 z-40 bg-black bg-opacity-70 p-2 rounded">
+          <div
+            className="fixed top-2 left-1/2 transform -translate-x-1/2 z-40 bg-black bg-opacity-70 p-2 rounded transition-opacity duration-300"
+            style={{ opacity: areControlsVisible ? 1 : 0.1 }}
+          >
             <button
               className="bg-blue-600 text-white text-xs px-3 py-1 rounded flex items-center"
               onClick={enterFullscreen}
@@ -514,8 +528,8 @@ export default function Home() {
           initialPosition={guideLinePosition}
           onPositionChange={setGuideLinePosition}
           orientation={orientation}
-          minPosition={20}
-          maxPosition={80}
+          minPosition={15}
+          maxPosition={33}
         />
       </div>
 
@@ -538,21 +552,7 @@ export default function Home() {
           visionMode={visionMode}
         />
       </div>
-
-      {/* QR Scanning Message */}
-      {showQRMessage && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg">
-          <div className="flex items-center space-x-3">
-            <span className="text-sm font-medium">Сканируйте QR-код камерой или введите токен в настройках</span>
-            <button
-              onClick={() => setIsNavOpen(true)}
-              className="bg-white text-blue-600 px-3 py-1 rounded text-sm font-medium hover:bg-gray-100"
-            >
-              Настройки
-            </button>
-          </div>
-        </div>
-      )}
+      )
     </div>
   );
 }
