@@ -175,7 +175,7 @@ export default function Home() {
         setServerStatus('checking');
         setActive(true);
       } else {
-        setIsNavOpen(true)
+        toggleNav()
       }
     } else {
       manualDisconnectRef.current = true;
