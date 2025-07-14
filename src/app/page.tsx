@@ -33,7 +33,7 @@ export default function Home() {
   const isLandscape = orientation === 'landscape';
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [isActive, setActive] = useState(false);
-  const [guideLinePosition, setGuideLinePosition] = useState(70);
+  const [guideLinePosition, setGuideLinePosition] = useState(67);
   const [visionMode, setVisionMode] = useState<VisionMode>('normal');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [serverToken, setServerToken] = useState<string>('');
@@ -47,7 +47,6 @@ export default function Home() {
     label: 'Ничего',
     confidence: 0
   });
-  const [showQRMessage, setShowQRMessage] = useState(false);
 
   useEffect(() => {
     if (isSignedIn === false) {
@@ -75,13 +74,6 @@ export default function Home() {
 
     registerUser().then(() => null);
   }, [isSignedIn, userId]);
-
-  // Show QR message when no server is connected
-  useEffect(() => {
-    if (isSignedIn) {
-      setShowQRMessage(!serverToken || serverToken.trim() === '');
-    }
-  }, [isSignedIn, serverToken]);
 
   // Save user settings to cookies when they change
   useEffect(() => {
@@ -514,8 +506,8 @@ export default function Home() {
           initialPosition={guideLinePosition}
           onPositionChange={setGuideLinePosition}
           orientation={orientation}
-          minPosition={20}
-          maxPosition={80}
+          minPosition={15}
+          maxPosition={33}
         />
       </div>
 
@@ -538,21 +530,7 @@ export default function Home() {
           visionMode={visionMode}
         />
       </div>
-
-      {/* QR Scanning Message */}
-      {showQRMessage && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg">
-          <div className="flex items-center space-x-3">
-            <span className="text-sm font-medium">Сканируйте QR-код камерой или введите токен в настройках</span>
-            <button
-              onClick={() => setIsNavOpen(true)}
-              className="bg-white text-blue-600 px-3 py-1 rounded text-sm font-medium hover:bg-gray-100"
-            >
-              Настройки
-            </button>
-          </div>
-        </div>
-      )}
+      )
     </div>
   );
 }
