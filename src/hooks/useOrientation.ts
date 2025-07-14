@@ -18,5 +18,5 @@ export function useOrientation(): Orientation {
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  return "portrait";
+  return orientation;
 }
