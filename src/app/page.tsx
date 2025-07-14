@@ -39,6 +39,7 @@ export default function Home() {
   const [serverToken, setServerToken] = useState<string>('');
   const [tokenStatus, setTokenStatus] = useState<TokenStatus>('not_set');
   const [serverStatus, setServerStatus] = useState<ServerStatus>('disconnected');
+  const [areControlsVisible, setAreControlsVisible] = useState<boolean>(true);
   const wsRef = useRef<WebSocket | null>(null);
   const manualDisconnectRef = useRef<boolean>(false);
   const attemptRef = useRef<number>(0);
@@ -258,6 +259,11 @@ export default function Home() {
     }
   };
 
+  // Toggle controls visibility
+  const toggleControlsVisibility = () => {
+    setAreControlsVisible(!areControlsVisible);
+  };
+
   // Open navbar if connection fails
   useEffect(() => {
     if (serverStatus === 'error') {
@@ -398,11 +404,6 @@ export default function Home() {
             : { height: `${guideLinePosition}%` }
         }
       >
-        {/* Navigation drawer overlay - closes drawer when clicking outside */}
-        {isNavOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-10" onClick={() => setIsNavOpen(false)} />
-        )}
-
         {/* Navigation view */}
         <NavigationView
           isOpen={isNavOpen}
@@ -421,6 +422,18 @@ export default function Home() {
           socket={wsRef.current}
           onResult={handleSocketResult}
           serverStatus={serverStatus}
+        />
+
+        {/* Clickable overlay to toggle controls visibility */}
+        <div
+          className="absolute inset-0 z-20"
+          onClick={() => {
+            if (isNavOpen) {
+              toggleNav()
+            } else {
+              toggleControlsVisibility();
+            }
+          }}
         />
 
         {/* Overlay for bounding boxes */}
@@ -465,7 +478,10 @@ export default function Home() {
         )}
 
         {/* Settings button - positioned at the top left with animation */}
-        <div className={`absolute top-2 left-2 z-40 transition-transform duration-300 ${isNavOpen ? 'translate-x-64 rotate-90' : ''}`}>
+        <div
+          className={`absolute top-2 left-2 z-40 transition-all duration-300 ${isNavOpen ? 'translate-x-64 rotate-90' : ''}`}
+          style={{ opacity: areControlsVisible ? 1 : 0.1 }}
+        >
           <button
             className="bg-gray-800 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center"
             onClick={toggleNav}
@@ -478,7 +494,10 @@ export default function Home() {
         </div>
 
         {/* User button - positioned at the top right */}
-        <div className="absolute top-2 right-2 z-40">
+        <div
+          className="absolute top-2 right-2 z-40 transition-opacity duration-300"
+          style={{ opacity: areControlsVisible ? 1 : 0.1 }}
+        >
           <div className="w-10 h-10 flex items-center justify-center">
             <UserButton />
           </div>
@@ -486,7 +505,10 @@ export default function Home() {
 
         {/* Fullscreen prompt */}
         {!isFullscreen && (
-          <div className="fixed top-2 left-1/2 transform -translate-x-1/2 z-40 bg-black bg-opacity-70 p-2 rounded">
+          <div
+            className="fixed top-2 left-1/2 transform -translate-x-1/2 z-40 bg-black bg-opacity-70 p-2 rounded transition-opacity duration-300"
+            style={{ opacity: areControlsVisible ? 1 : 0.1 }}
+          >
             <button
               className="bg-blue-600 text-white text-xs px-3 py-1 rounded flex items-center"
               onClick={enterFullscreen}
