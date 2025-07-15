@@ -40,6 +40,8 @@ const ConnectClient: React.FC = () => {
 
   useEffect(() => {
     const processToken = async () => {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       const tokenParam = searchParams.get('token')
 
       if (!tokenParam) {
@@ -76,7 +78,7 @@ const ConnectClient: React.FC = () => {
     }
 
     processToken().then(() => null)
-  }, [searchParams, isSignedIn, router, handleTokenConnect, token])
+  }, [searchParams, isSignedIn, router, token])
 
   return (
       <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
