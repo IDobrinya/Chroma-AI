@@ -44,16 +44,10 @@ const ConnectClient: React.FC = () => {
 
       const tokenParam = searchParams.get('token')
 
-      if (isSignedIn === undefined) {
+      if (isSignedIn === undefined || !tokenParam) {
         return;
       } else if (!isSignedIn) {
         setError('Sign in first')
-        setIsProcessing(false)
-        return
-      }
-
-      if (!tokenParam) {
-        setError('Token invalid or missing')
         setIsProcessing(false)
         return
       }
