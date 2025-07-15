@@ -42,14 +42,16 @@ const ConnectClient: React.FC = () => {
     const processToken = async () => {
       const tokenParam = searchParams.get('token')
 
-      if (!tokenParam) {
-        setError('Token invalid or missing')
+      if (isSignedIn === undefined) {
+        return;
+      } else if (!isSignedIn) {
+        setError('Sign in first')
         setIsProcessing(false)
         return
       }
 
-      if (!isSignedIn) {
-        setError('Sign in first')
+      if (!tokenParam) {
+        setError('Token invalid or missing')
         setIsProcessing(false)
         return
       }
@@ -76,7 +78,7 @@ const ConnectClient: React.FC = () => {
     }
 
     processToken().then(() => null)
-  }, [searchParams, isSignedIn, router, handleTokenConnect, token])
+  }, [searchParams, isSignedIn, router, token])
 
   return (
       <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
