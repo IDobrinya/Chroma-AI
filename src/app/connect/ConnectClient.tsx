@@ -50,12 +50,6 @@ const ConnectClient: React.FC = () => {
         return
       }
 
-      if (!tokenParam) {
-        setError('Token invalid or missing')
-        setIsProcessing(false)
-        return
-      }
-
       setToken(tokenParam)
       console.log('Extracted token from URL:', token);
 
