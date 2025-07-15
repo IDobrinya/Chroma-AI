@@ -552,7 +552,6 @@ export default function Home() {
           visionMode={visionMode}
         />
       </div>
-      )
     </div>
   );
 }
