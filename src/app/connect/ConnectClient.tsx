@@ -18,7 +18,7 @@ const ConnectClient: React.FC = () => {
     if (!userId) return false
 
     try {
-      const result = await serverRegistryAPI.linkServer(tokenValue, userId)
+      const result = await serverRegistryAPI.linkServer(userId, tokenValue)
       if (result.success) {
         const serverInfo = await serverRegistryAPI.getUserServer(userId)
         if (serverInfo.success && serverInfo.data) {
@@ -53,7 +53,7 @@ const ConnectClient: React.FC = () => {
       }
 
       setToken(tokenParam)
-      console.log('Extracted token from URL:', token);
+      console.log('Extracted token from URL:', tokenParam);
 
       try {
         const success = await handleTokenConnect(tokenParam)
