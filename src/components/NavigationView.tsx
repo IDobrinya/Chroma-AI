@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 
 type VisionMode = 'normal' | 'protanomaly' | 'deuteranomaly' | 'tritanomaly' | 'achromatopsia';
 
@@ -26,6 +26,12 @@ const NavigationView: React.FC<NavigationViewProps> = ({
 }) => {
   const [isTokenInputVisible, setIsTokenInputVisible] = useState(false);
   const [tempServerToken, setTempServerToken] = useState(serverToken);
+
+  useEffect(() => {
+    if (tokenStatus === 'valid'){
+      setTempServerToken(serverToken);
+    }
+  }, [serverToken]);
 
   // Handle mode selection
   const handleModeSelect = (mode: VisionMode) => {
