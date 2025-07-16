@@ -7,7 +7,7 @@ import CameraView from '../components/CameraView';
 import ResultPanel from '../components/ResultPanel';
 import { useRouter } from 'next/navigation';
 import { useAuth, UserButton } from '@clerk/nextjs';
-import { setCookie } from '@/utils/cookies';
+import { setCookie, getCookie } from '@/utils/cookies';
 import { serverRegistryAPI } from '@/utils/serverRegistry';
 import { useOrientation } from '@/hooks/useOrientation';
 
@@ -75,6 +75,31 @@ export default function Home() {
 
     registerUser().then(() => null);
   }, [isSignedIn, userId]);
+
+  useEffect(() => {
+    const loadSettings = () => {
+      try {
+        const savedSettings = getCookie('userSettings');
+        if (savedSettings) {
+          const settings: UserSettings = JSON.parse(savedSettings);
+          console.log('Loaded settings:', settings);
+
+          if (settings.serverToken && settings.serverToken.trim() !== '') {
+            setServerToken(settings.serverToken);
+            setTokenStatus('valid');
+          }
+
+          if (settings.visionMode) {
+            setVisionMode(settings.visionMode);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading settings from cookies:', error);
+      }
+    };
+
+    loadSettings();
+  }, []);
 
   // Save user settings to cookies when they change
   useEffect(() => {
@@ -334,7 +359,6 @@ export default function Home() {
 
   // Define colorblind-friendly color sets for different vision modes
   const getColorScheme = (mode: VisionMode) => {
-    // Each array contains colors for [green, red, yellow] in order
     switch(mode) {
       case 'protanomaly': // Red-weak, enhance distinction between red and green
         return ['#00DDDD', '#FFAAAA', '#EEEE00'];

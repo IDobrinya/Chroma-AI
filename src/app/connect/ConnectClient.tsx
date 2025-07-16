@@ -23,7 +23,7 @@ const ConnectClient: React.FC = () => {
         const serverInfo = await serverRegistryAPI.getUserServer(userId)
         if (serverInfo.success && serverInfo.data) {
           const settings = {
-            serverToken: serverInfo.data.bridge_url,
+            serverToken: tokenValue,
             visionMode: 'normal'
           }
           setCookie('userSettings', JSON.stringify(settings))
