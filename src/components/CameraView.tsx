@@ -176,11 +176,6 @@ const CameraView: React.FC<CameraViewProps> = ({
           <p>Initializing camera...</p>
         </div>
       )}
-      {isActive && stream && (
-        <div className="absolute top-4 right-4">
-          <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse"></div>
-        </div>
-      )}
     </div>
   );
 };
