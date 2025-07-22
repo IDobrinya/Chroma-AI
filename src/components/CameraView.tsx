@@ -77,8 +77,31 @@ const CameraView: React.FC<CameraViewProps> = ({
     canvas.height = 640;
 
     const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    if (ctx && videoRef.current) {
+      const video = videoRef.current;
+      const videoWidth = video.videoWidth;
+      const videoHeight = video.videoHeight;
+      const displayWidth = video.clientWidth;
+      const displayHeight = video.clientHeight;
+      
+      const videoAspectRatio = videoWidth / videoHeight;
+      const displayAspectRatio = displayWidth / displayHeight;
+      
+      let sx, sy, sWidth, sHeight;
+      
+      if (videoAspectRatio > displayAspectRatio) {
+        sHeight = videoHeight;
+        sWidth = videoHeight * displayAspectRatio;
+        sx = (videoWidth - sWidth) / 2;
+        sy = 0;
+      } else {
+        sWidth = videoWidth;
+        sHeight = videoWidth / displayAspectRatio;
+        sx = 0;
+        sy = (videoHeight - sHeight) / 2;
+      }
+      
+      ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
 
       if (socket && socket.readyState === WebSocket.OPEN && serverStatus === 'connected') {
         canvas.toBlob((blob) => {
