@@ -384,12 +384,12 @@ export default function Home() {
     
     // Calculate dimensions based on orientation
     const width = isLandscape
-      ? Math.floor(window.innerWidth * (guideLinePosition / 100))
+      ? Math.floor(window.outerWidth * (guideLinePosition / 100))
       : window.innerWidth;
     const height = isLandscape
       ? window.innerHeight
-      : Math.floor(window.innerHeight * (guideLinePosition / 100));
-    
+      : Math.floor(window.outerHeight * (guideLinePosition / 100));
+
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
