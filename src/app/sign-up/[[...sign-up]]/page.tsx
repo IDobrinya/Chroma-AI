@@ -34,7 +34,7 @@ export default function Page() {
                         </div>
                     ) : (
                         <div className="transition-opacity duration-300">
-                            <SignUp redirectUrl={redirectUrl} />
+                            <SignUp redirectUrl={redirectUrl} signInUrl={`/sign-in?redirectToken=${redirectToken || ""}`}/>
                         </div>
                     )}
                 </div>
