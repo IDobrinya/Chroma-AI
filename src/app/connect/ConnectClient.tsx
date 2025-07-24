@@ -18,6 +18,15 @@ const ConnectClient: React.FC = () => {
     if (!userId) return false
 
     try {
+      const result = await serverRegistryAPI.createUser(userId);
+      if (!result.success) {
+        console.warn('User registration failed:', result.message);
+      }
+    } catch (error) {
+      console.error('Error during user registration:', error);
+    }
+
+    try {
       const result = await serverRegistryAPI.linkServer(userId, tokenValue)
       if (result.success) {
         const serverInfo = await serverRegistryAPI.getUserServer(userId)
