@@ -49,12 +49,12 @@ const ConnectClient: React.FC = () => {
       } else if (!isSignedIn) {
         setError('Sign in first')
         setIsProcessing(false)
-        router.push('/sign-in');
+        router.push(`/sign-in?redirectToken=${encodeURIComponent(tokenParam)}`);
         return
       }
 
       setToken(tokenParam)
-      console.log('Extracted token from URL:', tokenParam);
+      console.log('Processing token:', tokenParam);
 
       try {
         const success = await handleTokenConnect(tokenParam)

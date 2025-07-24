@@ -2,17 +2,31 @@
 
 import { SignIn } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function Page() {
-    const [isLoading, setIsLoading] = useState(true);
+    const [isSignInLoading, setIsSignInLoading] = useState(true);
+    const { isSignedIn } = useAuth();
+    const router = useRouter();
+    const searchParams = useSearchParams();
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            setIsLoading(false);
+            setIsSignInLoading(false);
         }, 1000);
 
         return () => clearTimeout(timer);
     }, []);
+
+    useEffect(() => {
+        if (isSignedIn) {
+            const redirectToken = searchParams.get("redirectToken");
+            if (redirectToken) {
+                router.push(`/connect?token=${redirectToken}`);
+            }
+        }
+    }, [isSignedIn, router, searchParams]);
 
     return (
         <div className="flex items-center justify-center min-h-screen bg-black">
@@ -21,7 +35,7 @@ export default function Page() {
                     Sign in
                 </h1>
                 <div className="relative">
-                    {isLoading ? (
+                    {isSignInLoading ? (
                         <div className="flex items-center justify-center py-4">
                             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
                         </div>
