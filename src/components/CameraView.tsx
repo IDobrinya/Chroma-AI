@@ -183,7 +183,7 @@ const CameraView: React.FC<CameraViewProps> = ({
         playsInline
         className="w-full h-full object-cover"
         onLoadedMetadata={() => {
-          if (videoRef.current) videoRef.current.play();
+          if (videoRef.current) videoRef.current.play().then(() => null);
         }}
       />
       {hasPermission === false && (

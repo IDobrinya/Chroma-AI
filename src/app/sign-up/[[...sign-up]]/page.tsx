@@ -2,14 +2,16 @@
 
 import { SignUp } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 export default function Page() {
     const [isSignUpLoading, setIsSignUpLoading] = useState(true);
-    const { isSignedIn } = useAuth();
-    const router = useRouter();
     const searchParams = useSearchParams();
+    const redirectToken = searchParams.get("redirectToken");
+
+    const redirectUrl = redirectToken
+        ? `/connect?token=${redirectToken}`
+        : "/";
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -18,15 +20,6 @@ export default function Page() {
 
         return () => clearTimeout(timer);
     }, []);
-
-    useEffect(() => {
-        if (isSignedIn) {
-            const redirectToken = searchParams.get("redirectToken");
-            if (redirectToken) {
-                router.push(`/connect?token=${redirectToken}`);
-            }
-        }
-    }, [isSignedIn, router, searchParams]);
 
     return (
         <div className="flex items-center justify-center min-h-screen bg-black">
@@ -41,7 +34,7 @@ export default function Page() {
                         </div>
                     ) : (
                         <div className="transition-opacity duration-300">
-                            <SignUp />
+                            <SignUp redirectUrl={redirectUrl} />
                         </div>
                     )}
                 </div>
