@@ -46,6 +46,11 @@ const ConnectClient: React.FC = () => {
 
       if (isSignedIn === undefined || !tokenParam) {
         return;
+      } else if (!isSignedIn) {
+        setError('Sign in first')
+        setIsProcessing(false)
+        router.push('/sign-in');
+        return
       }
 
       setToken(tokenParam)
@@ -56,11 +61,7 @@ const ConnectClient: React.FC = () => {
         if (success) {
           setTimeout(() => {
             setIsProcessing(false)
-            if (isSignedIn){
-              router.push('/');
-            } else {
-              router.push('/sign-in');
-            }
+            router.push('/')
           }, 1000)
         } else {
           setError('Failed to link server')
